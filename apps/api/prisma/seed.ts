@@ -17,7 +17,8 @@ export const DEMO_PASSWORD = 'Demo1234!';
 async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
-  await db.$executeRawUnsafe(`TRUNCATE job_parts, stock_movements, site_stock, qr_print_logs, job_components, job_events,
+  await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, site_managers, user_tokens,
+    job_parts, stock_movements, site_stock, qr_print_logs, job_components, job_events,
     jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
     companies, plans RESTART IDENTITY CASCADE`);
   await db.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
@@ -43,7 +44,7 @@ async function main() {
   const pro = await db.plan.create({
     data: {
       code: 'pro', name: 'Pro', priceCents: 29900, maxJobsPerMonth: null, maxSites: null, maxUsers: null,
-      features: ['Unlimited job orders', 'Multiple repair-center sites', 'Roles: Head Technician, Technician, Stock Keeper', 'Head Technician assigns jobs to technicians', 'Audit log and QR labels'],
+      features: ['Unlimited job orders', 'Multiple repair-center sites', 'Roles: Site Manager, Head Technician, Technician, Stock Keeper', 'Head Technician assigns jobs to technicians', 'Audit log and QR labels'],
     },
   });
 
@@ -96,6 +97,11 @@ async function main() {
     data: { companyId: C, email: 'stock@siamhash.demo', passwordHash, fullName: 'Malee T.', role: 'stock_keeper', teamId: alpha.id },
   });
   await db.team.update({ where: { id: alpha.id }, data: { headUserId: head.id } });
+  // Site manager for Chonburi only: sees site2's jobs and staff, not Bangkok's.
+  const manager = await db.user.create({
+    data: { companyId: C, email: 'manager@siamhash.demo', passwordHash, fullName: 'Pranee S.', role: 'site_manager' },
+  });
+  await db.siteManager.create({ data: { companyId: C, userId: manager.id, siteId: site2.id } });
 
   // Parts + stock per site (some below minimum to show "Low")
   const partDefs = [
@@ -184,8 +190,8 @@ async function main() {
   });
 
   console.log(`Seeded. All demo accounts use password: ${DEMO_PASSWORD}`);
-  console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · head@siamhash.demo (head technician)');
-  console.log('  tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper) · admin@northminer.demo (suspended company)');
+  console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · manager@siamhash.demo (site manager, Chonburi)');
+  console.log('  head@siamhash.demo (head technician) · tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper) · admin@northminer.demo (suspended company)');
 }
 
 main()

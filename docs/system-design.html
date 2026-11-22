@@ -175,6 +175,24 @@ a{color:var(--accent)}
 <tr><td>ตั้งโควตา, ระงับหรือเปิดบริษัท, ดูรายได้</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
 </tbody></table></div>
 <p>ผู้จัดการไซต์ (<code>site_manager</code>) เห็นเฉพาะไซต์ที่ผูกไว้ในตาราง <code>site_managers</code> คนเดียวดูแลได้หลายไซต์โดยไม่จำกัดจำนวน ส่วนแอดมินบริษัทยังเห็นทั้งบริษัท สิทธิ์ในคอลัมน์นี้เป็นข้อเสนอ ต้องให้ผู้จัดการไซต์ตัวจริงยืนยัน</p>
+<h3>ขอบเขตข้อมูลที่แต่ละบทบาทเห็น</h3>
+<p>RLS จำกัดข้อมูลให้อยู่ในบริษัทเดียว แล้ว API กรองต่อตามบทบาท (<code>apps/api/src/auth/scope.ts</code>) ทุก query ของบริษัทต้องใช้ตัวกรองนี้</p>
+<ul>
+<li><b>แอดมินบริษัท, คนคุมสต็อก:</b> ทุกไซต์ในบริษัท</li>
+<li><b>ผู้จัดการไซต์:</b> เฉพาะไซต์ใน <code>site_managers</code></li>
+<li><b>หัวหน้าช่าง, ช่าง:</b> เฉพาะไซต์ของทีมตัวเอง และเห็นเฉพาะงานที่ยังไม่มีคนรับ หรืองานที่คนในทีมเดียวกันรับไว้ ช่างที่ยังไม่มีทีมจะไม่เห็นงานเลย</li>
+</ul>
+<p>เปิดงานที่อยู่นอกขอบเขตจะได้ 404 ไม่ใช่ 403 เพื่อไม่บอกว่างานนั้นมีอยู่ เปลี่ยนบทบาท ทีม หรือไซต์แล้วมีผลทันทีในคำขอถัดไป เพราะระบบอ่านสิทธิ์จากฐานข้อมูลทุกครั้ง ไม่ได้เก็บไว้ใน token</p>
+<h3>เชิญผู้ใช้และลืมรหัสผ่าน</h3>
+<ul>
+<li>แอดมินบริษัทสร้างผู้ใช้โดยยังไม่มีรหัสผ่าน ระบบส่งลิงก์เชิญอายุ 7 วัน ผู้ใช้ตั้งรหัสผ่านเองแล้วเข้าระบบทันที ถ้ายังไม่กดลิงก์จะล็อกอินไม่ได้</li>
+<li>ลิงก์รีเซ็ตรหัสผ่านอายุ 1 ชั่วโมง ทุกลิงก์ใช้ได้ครั้งเดียว ขอลิงก์ใหม่แล้วลิงก์เก่าใช้ไม่ได้ เก็บเฉพาะ hash ในตาราง <code>user_tokens</code></li>
+<li><code>forgot-password</code> ตอบ 204 เสมอ ไม่บอกว่ามีอีเมลนี้ในระบบหรือไม่ และจำกัดได้ 3 ครั้งต่อ 15 นาทีต่ออีเมล</li>
+<li>ตั้งหรือรีเซ็ตรหัสผ่าน และปิดบัญชี จะทำให้ทุก session เดิมหลุด</li>
+<li>เชิญหรือเปิดบัญชีคืน ต้องไม่เกินจำนวนผู้ใช้ของแพ็กเกจ (<code>max_users</code> หรือ <code>override_limits.maxUsers</code>) นับรวมคนที่ยังไม่รับคำเชิญ</li>
+<li>บริษัทต้องมีแอดมินที่ใช้งานอยู่อย่างน้อย 1 คน และแอดมินเปลี่ยนบทบาทตัวเองหรือปิดบัญชีตัวเองไม่ได้</li>
+<li>ยังไม่ได้ต่อผู้ให้บริการส่งอีเมล ตอนนี้ <code>MailService</code> เขียนอีเมลลง log ไว้ก่อน ต้องเลือกผู้ให้บริการก่อนขึ้นระบบจริง</li>
+</ul>
 <p>แพ็กเกจ Basic มีผู้ใช้ได้ 1 บัญชีที่เป็นแอดมินบริษัท บทบาทหัวหน้าช่าง ช่าง และคนคุมสต็อก ใช้ได้เฉพาะแพ็กเกจ Pro ตามหน้า Pricing ในต้นแบบ</p>
 
 <h2 id="data">5. โครงสร้างข้อมูล</h2>
@@ -301,16 +319,17 @@ stateDiagram-v2
 </ul>
 <h3>Audit log</h3>
 <p>ต้องบันทึกอย่างน้อยเหตุการณ์เหล่านี้: ล็อกอินสำเร็จหรือล้มเหลว, เปลี่ยนสถานะงาน, มอบหมายงาน, ทุก movement ของสต็อก, เปลี่ยนสิทธิ์ผู้ใช้, เปลี่ยนแพ็กเกจหรือโควตา, Suspend/Activate และการที่เจ้าของแพลตฟอร์มเข้าดูข้อมูลบริษัท</p>
+<p>การเปิดดูข้อมูลสำคัญบันทึกเป็น <code>view.&lt;entity&gt;</code> ด้วย decorator <code>@LogView</code> ตอนนี้ใช้กับรายละเอียดงานซ่อม (มีข้อมูลติดต่อลูกค้า), รายชื่อพนักงาน และ audit log เอง endpoint ใหม่ที่แสดงข้อมูลลูกค้า ใบแจ้งหนี้ หรือการชำระเงิน ต้องใส่ decorator นี้ด้วย</p>
 
 <h2 id="api">8. API</h2>
 <p>REST, JSON, prefix <code>/api/v1</code> เอกสาร OpenAPI สร้างอัตโนมัติจาก NestJS Swagger ไว้ที่ <code>/api/docs</code> ทุก endpoint (ยกเว้น auth) ต้องมี JWT และตรวจสิทธิ์ตามข้อ 4</p>
 <div class="tbl"><table>
 <thead><tr><th>กลุ่ม</th><th>Endpoint</th><th>ใช้ในหน้า</th></tr></thead>
 <tbody>
-<tr><td>Auth</td><td><code>POST /auth/register</code> · <code>/auth/login</code> · <code>/auth/refresh</code> · <code>/auth/logout</code> · <code>/auth/forgot-password</code> · <code>/auth/reset-password</code> · <code>/auth/accept-invite</code></td><td>Log in, Register, Change password</td></tr>
+<tr><td>Auth</td><td><code>POST /auth/register</code> · <code>/auth/login</code> · <code>/auth/refresh</code> · <code>/auth/logout</code> · <code>/auth/forgot-password</code> · <code>/auth/reset-password</code> · <code>GET /auth/invites/:token</code> · <code>POST /auth/accept-invite</code></td><td>Log in, Register, Change password</td></tr>
 <tr><td>Me</td><td><code>GET /me</code> · <code>PATCH /me/password</code></td><td>ทุกหน้า</td></tr>
 <tr><td>Company</td><td><code>GET/PATCH /company</code> · <code>GET /company/usage</code></td><td>Setup wizard, Subscription</td></tr>
-<tr><td>Users</td><td><code>GET/POST /users</code> · <code>PATCH /users/:id</code> · <code>POST /users/:id/deactivate</code></td><td>Technicians, Add technician</td></tr>
+<tr><td>Users</td><td><code>GET/POST /users</code> · <code>GET/PATCH /users/:id</code> · <code>POST /users/:id/deactivate</code> · <code>/activate</code> · <code>/resend-invite</code></td><td>Technicians, Add technician</td></tr>
 <tr><td>Customers</td><td><code>GET/POST /customers</code> · <code>GET/PATCH /customers/:id</code></td><td>Customers, Customer detail</td></tr>
 <tr><td>Sites</td><td><code>GET/POST /sites</code> · <code>GET/PATCH /sites/:id</code> · <code>GET /sites/:id/stock</code></td><td>Sites, Site detail</td></tr>
 <tr><td>Teams</td><td><code>GET/POST /teams</code> · <code>PATCH /teams/:id</code> · <code>PUT /teams/:id/members</code></td><td>Teams, New team</td></tr>
@@ -322,7 +341,7 @@ stateDiagram-v2
 <tr><td>Reports</td><td><code>GET /reports/turnaround</code> · <code>/reports/parts-usage</code> · <code>/reports/jobs-by-technician</code> · <code>?format=csv</code></td><td>Reports</td></tr>
 <tr><td>Repair billing</td><td><code>POST /jobs/:id/invoice</code> · <code>GET/PATCH /job-invoices/:id</code> · <code>POST /job-invoices/:id/void</code> · <code>POST /job-invoices/:id/payments</code> (แนบสลิป) · <code>POST /job-payments/:id/confirm</code> · <code>/reject</code></td><td>Job detail, Invoices</td></tr>
 <tr><td>Billing</td><td><code>GET /billing/invoices</code> · <code>POST /billing/invoices/:id/slip</code> · <code>PATCH /billing/details</code></td><td>Subscription, Payment details</td></tr>
-<tr><td>Audit</td><td><code>GET /audit-logs</code></td><td>Audit log</td></tr>
+<tr><td>Audit</td><td><code>GET /audit-logs?action=&amp;actorUserId=</code></td><td>Audit log</td></tr>
 <tr><td>Platform</td><td><code>GET /platform/companies</code> · <code>GET /platform/overview</code> · <code>PATCH /platform/companies/:id/limits</code> · <code>POST /platform/companies/:id/suspend</code> · <code>/activate</code> · <code>POST /platform/invoices/:id/mark-paid</code> · <code>GET /platform/revenue</code> · <code>GET /platform/health</code></td><td>Companies, Quotas, Revenue, Platform health</td></tr>
 </tbody></table></div>
 <p>รายการทั้งหมดรองรับ <code>?page=&amp;limit=&amp;q=&amp;sort=</code> และรูปแบบ error ใช้ร่วมกันคือ <code>{ "code": "STOCK_INSUFFICIENT", "message": "...", "details": {...} }</code></p>

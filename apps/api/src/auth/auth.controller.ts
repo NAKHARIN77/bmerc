@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { parse } from '../common/http.js';
@@ -19,6 +19,9 @@ const RegisterBody = z.object({
 });
 const LoginBody = z.object({ email: z.email(), password: z.string().min(1) });
 const ChangePasswordBody = z.object({ currentPassword: z.string().min(1), newPassword: password });
+const ForgotBody = z.object({ email: z.email() });
+const token = z.string().min(20).max(200);
+const TokenPasswordBody = z.object({ token, password });
 
 const secure = () => process.env.NODE_ENV === 'production';
 
@@ -55,6 +58,38 @@ export class AuthController {
   @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return setSession(res, await this.auth.refresh(req.cookies?.[REFRESH_COOKIE], req.headers['user-agent']));
+  }
+
+  /** Always 204, whether or not the email exists. */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(204)
+  async forgotPassword(@Body() body: unknown, @Req() req: Request) {
+    await this.auth.forgotPassword(parse(ForgotBody, body).email, req.ip);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(204)
+  async resetPassword(@Body() body: unknown, @Req() req: Request) {
+    const b = parse(TokenPasswordBody, body);
+    await this.auth.resetPassword(b.token, b.password, req.ip);
+  }
+
+  /** Accept-invite page: shows who the invite is for before the user sets a password. */
+  @Public()
+  @Get('invites/:token')
+  inviteInfo(@Param('token') t: string) {
+    return this.auth.inviteInfo(parse(token, t));
+  }
+
+  /** Sets the password and signs the user in. */
+  @Public()
+  @Post('accept-invite')
+  @HttpCode(200)
+  async acceptInvite(@Body() body: unknown, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const b = parse(TokenPasswordBody, body);
+    return setSession(res, await this.auth.acceptInvite(b.token, b.password, req.ip, req.headers['user-agent']));
   }
 
   @Public()
