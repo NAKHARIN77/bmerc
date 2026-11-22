@@ -46,6 +46,7 @@ export interface Site {
   address: string | null;
   status: "setup" | "active" | "inactive";
   teams: Array<{ id: string; name: string; headUserId: string | null }>;
+  partsStocked: number;
 }
 
 export interface Team {
@@ -54,7 +55,9 @@ export interface Team {
   siteId: string;
   headUserId: string | null;
   site: { name: string };
-  members: Array<{ id: string; fullName: string; role: Role | null; isActive: boolean }>;
+  members: Array<{ id: string; fullName: string; role: Role | null; isActive: boolean; jobsOpen: number; jobsDone: number }>;
+  jobsOpen: number;
+  jobsDone: number;
 }
 
 export interface Usage {
@@ -86,6 +89,21 @@ export interface JobDetail extends JobRow {
   device: JobRow["device"] & { hashrateTh: string | number | null; qrCode: string | null };
   customer: { id: string; name: string; contactName: string | null; email: string | null; phone: string | null };
   events: Array<{ id: string; fromStatus: JobStatus | null; toStatus: JobStatus; actorId: string | null; note: string | null; createdAt: string }>;
+  parts: Array<{ id: string; qty: number; part: { id: string; name: string; sku: string; unit: string } }>;
+  components: Array<{ id: string; component: string; serialNo: string | null; replacementSerialNo: string | null; workDone: string | null; result: "repaired" | "replaced" | "unchanged" }>;
+}
+
+export interface JobSummary {
+  total: number;
+  open: number;
+  byStatus: Record<JobStatus, number>;
+}
+
+export interface CustomerSummary {
+  customers: number;
+  devicesIn: number;
+  openJobs: number;
+  countries: string[];
 }
 
 export interface CustomerRow {
@@ -121,4 +139,5 @@ export interface PartRow {
 
 export interface PartDetail extends Omit<PartRow, "totalQty" | "belowMin"> {
   stock: Array<{ site: { id: string; name: string }; qty: number; belowMin: boolean }>;
+  movements: Array<{ id: string; type: "in" | "out" | "adjust"; qty: number; reason: string | null; createdAt: string; by: string | null; site: { name: string }; job: { id: string; number: string } | null }>;
 }

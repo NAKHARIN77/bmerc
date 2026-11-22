@@ -4,11 +4,11 @@ import { JOB_STATUS_LABEL, SITE_STATUS_LABEL, type JobPriority, type JobStatus, 
 import { Chip } from "./ui";
 
 const STATUS_TONE: Record<JobStatus, "info" | "success" | "warn" | "danger" | "neutral"> = {
-  todo: "info",
-  in_repair: "success",
+  todo: "warn",
+  in_repair: "info",
   waiting_parts: "warn",
   unrepairable: "danger",
-  qc_passed: "neutral",
+  qc_passed: "success",
   dispatched: "neutral",
 };
 
@@ -22,5 +22,5 @@ export function PriorityChip({ priority }: { priority: JobPriority }) {
 }
 
 export function SiteStatusChip({ status }: { status: SiteStatus }) {
-  return <Chip tone={status === "active" ? "success" : status === "setup" ? "info" : "neutral"}>{SITE_STATUS_LABEL[status]}</Chip>;
+  return <Chip tone={status === "active" ? "success" : status === "setup" ? "warn" : "neutral"}>{SITE_STATUS_LABEL[status]}</Chip>;
 }

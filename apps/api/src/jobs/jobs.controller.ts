@@ -13,8 +13,13 @@ const JobsQuery = PageQuery.extend({
   status: z.enum(JobStatus).optional(),
   siteId: z.uuid().optional(),
   assigneeId: z.uuid().optional(),
-  q: z.string().trim().max(100).optional(), // job number or serial
+  q: z.string().trim().max(100).optional(), // job number, serial or customer name
+  customerId: z.uuid().optional(),
+  open: z.enum(['true']).optional(), // not yet passed QC
+  assigned: z.enum(['true']).optional(), // held by a technician
 });
+const SummaryQuery = z.object({ siteId: z.uuid().optional(), customerId: z.uuid().optional() });
+const DONE: JobStatus[] = ['qc_passed', 'dispatched'];
 
 const listSelect = {
   id: true, number: true, status: true, priority: true, reportedFault: true, receivedAt: true, updatedAt: true,
@@ -39,7 +44,18 @@ export class JobsController {
         q.status ? { status: q.status } : {},
         q.siteId ? { siteId: q.siteId } : {},
         q.assigneeId ? { assigneeId: q.assigneeId } : {},
-        q.q ? { OR: [{ number: { contains: q.q, mode: 'insensitive' as const } }, { device: { serialNo: { contains: q.q, mode: 'insensitive' as const } } }] } : {},
+        q.customerId ? { customerId: q.customerId } : {},
+        q.open ? { status: { notIn: DONE } } : {},
+        q.assigned ? { assigneeId: { not: null } } : {},
+        q.q
+          ? {
+              OR: [
+                { number: { contains: q.q, mode: 'insensitive' as const } },
+                { device: { serialNo: { contains: q.q, mode: 'insensitive' as const } } },
+                { customer: { name: { contains: q.q, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {},
       ],
     };
     const db = this.db.tenant(me);
@@ -48,6 +64,22 @@ export class JobsController {
       db.job.count({ where }),
     ]);
     return paged(items, total, q);
+  }
+
+  /** Job counts by status for the KPI cards and filter tabs, within what this user may see. */
+  @Roles(...COMPANY_ROLES)
+  @Get('summary')
+  async summary(@CurrentUser() me: AuthUser, @Query() query: unknown) {
+    const q = parse(SummaryQuery, query);
+    const rows = await this.db.tenant(me).job.groupBy({
+      by: ['status'],
+      where: { AND: [jobScope(me), q.siteId ? { siteId: q.siteId } : {}, q.customerId ? { customerId: q.customerId } : {}] },
+      _count: { _all: true },
+    });
+    const byStatus = Object.fromEntries(Object.values(JobStatus).map((s) => [s, 0])) as Record<JobStatus, number>;
+    for (const r of rows) byStatus[r.status] = r._count._all;
+    const total = Object.values(byStatus).reduce((a, n) => a + n, 0);
+    return { total, open: total - byStatus.qc_passed - byStatus.dispatched, byStatus };
   }
 
   /** Includes customer contact details, so every view is logged. Out-of-scope jobs return 404. */
@@ -63,6 +95,8 @@ export class JobsController {
         device: { select: { id: true, kind: true, model: true, serialNo: true, hashrateTh: true, qrCode: true } },
         customer: { select: { id: true, name: true, contactName: true, email: true, phone: true } },
         events: { select: { id: true, fromStatus: true, toStatus: true, actorId: true, note: true, createdAt: true }, orderBy: { id: 'asc' } },
+        parts: { select: { id: true, qty: true, part: { select: { id: true, name: true, sku: true, unit: true } } } },
+        components: { select: { id: true, component: true, serialNo: true, replacementSerialNo: true, workDone: true, result: true } },
       },
     });
     if (!job) throw notFound('Job');

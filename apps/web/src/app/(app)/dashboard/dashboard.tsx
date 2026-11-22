@@ -1,27 +1,22 @@
 "use client";
 
-import type { JobStatus } from "@bmerc/shared";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { fmtDate, fmtLimit } from "@/lib/format";
+import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
+import Link from "next/link";
+import { useState } from "react";
+import { fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
-import type { Page, Usage } from "@/lib/types";
+import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
-import { Card, ErrorState, Kpi, Loading, PageHeader, Table } from "@/components/ui";
+import { Card, ErrorState, Kpi, Loading, PageHeader, Pills, SearchBar, SectionTitle } from "@/components/ui";
 
-interface JobRow {
-  id: string;
-  number: string;
-  status: JobStatus;
-  receivedAt: string;
-  device: { kind: string; model: string; serialNo: string };
-  customer: { name: string };
-  site: { name: string };
-  assignee: { fullName: string } | null;
-}
+type Filter = "all" | JobStatus;
+const FILTERS: Array<{ value: Filter; label: string }> = [
+  { value: "all", label: "All" },
+  ...(["todo", "in_repair", "waiting_parts", "unrepairable", "qc_passed"] as const).map((s) => ({ value: s, label: JOB_STATUS_LABEL[s] })),
+];
 
-const OPEN: JobStatus[] = ["todo", "in_repair", "waiting_parts", "unrepairable"];
 export function Dashboard() {
   const { me, can } = useSession();
 
@@ -34,75 +29,74 @@ export function Dashboard() {
     );
   }
 
-  const scope =
-    me.siteIds === null ? "All sites in your company" : me.siteIds.length ? `Your ${me.siteIds.length === 1 ? "site" : `${me.siteIds.length} sites`}` : "No site assigned yet";
-
   return (
     <>
-      <PageHeader title="Overview" subtitle={`${me.company?.name ?? ""} · ${scope}`} />
-      <JobCounts />
-      <div className={`mt-5 grid gap-4 ${can("company_admin") ? "xl:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
-        <RecentJobs />
+      <PageHeader title="Overview" subtitle="Your repair center at a glance" />
+      <Counts />
+      <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
+        <NeedsAttention />
         {can("company_admin") && <PlanCard />}
       </div>
+      <JobCards />
     </>
   );
 }
 
-/** One count per open status, each limited to what this user may see (the API applies the scope). */
-function JobCounts() {
-  const [counts, setCounts] = useState<Record<string, number> | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    Promise.all(OPEN.map((s) => api<Page<JobRow>>(`/jobs?status=${s}&limit=1`).then((p) => [s, p.total] as const)))
-      .then((pairs) => setCounts(Object.fromEntries(pairs)))
-      .catch(setError);
-  }, []);
-
-  if (error) return <ErrorState error={error} />;
-  if (!counts) return <Loading />;
+function Counts() {
+  const summary = useApi<JobSummary>("/jobs/summary");
+  const parts = useApi<Page<PartRow>>("/parts?limit=100");
+  const s = summary.data;
+  const low = parts.data?.items.filter((p) => p.belowMin).length;
+  if (summary.error) return <ErrorState error={summary.error} onRetry={summary.reload} />;
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Kpi label="To do" value={counts.todo} caption="Waiting for a technician" tone="info" icon="wrench" />
-      <Kpi label="In repair" value={counts.in_repair} caption="On the bench now" tone="success" icon="wrench" />
-      <Kpi label="Waiting for parts" value={counts.waiting_parts} caption="Blocked on stock" tone="warn" icon="box" />
-      <Kpi label="Cannot repair" value={counts.unrepairable} caption="Waiting to go back to the customer" tone="danger" icon="wrench" />
+    <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Kpi label="Open jobs" value={s?.open ?? "—"} caption="Not yet passed QC" tone="info" icon="wrench" />
+      <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="Being repaired now" icon="wrench" />
+      <Kpi label="Waiting parts" value={s?.byStatus.waiting_parts ?? "—"} caption="Waiting for spare parts" tone="warn" icon="box" />
+      <Kpi label="Low stock" value={low ?? "—"} caption="Below minimum level, by site" tone="danger" icon="box" />
     </div>
   );
 }
 
-function RecentJobs() {
-  const { data, error, loading, reload } = useApi<Page<JobRow>>("/jobs?limit=8");
+/** Open jobs that need someone: urgent or high priority, waiting for parts, or cannot be repaired. */
+function NeedsAttention() {
+  const jobs = useApi<Page<JobRow>>("/jobs?open=true&limit=100");
+  const reason = (j: JobRow) =>
+    j.status === "unrepairable"
+      ? "Cannot repair"
+      : j.priority === "urgent"
+        ? "URGENT"
+        : j.priority === "high"
+          ? "HIGH PRIORITY"
+          : j.status === "waiting_parts"
+            ? "WAITING FOR PARTS"
+            : null;
+  const list = (jobs.data?.items ?? []).filter((j) => reason(j)).slice(0, 5);
   return (
     <div>
-      <h2 className="mb-3 text-base font-semibold text-navy">Latest jobs</h2>
-      {error ? (
-        <ErrorState error={error} onRetry={reload} />
-      ) : loading || !data ? (
+      <SectionTitle>Needs attention</SectionTitle>
+      {jobs.error ? (
+        <ErrorState error={jobs.error} onRetry={jobs.reload} />
+      ) : !jobs.data ? (
         <Loading />
+      ) : list.length === 0 ? (
+        <Card className="text-sm text-muted">Nothing needs attention right now.</Card>
       ) : (
-        <Table
-          rows={data.items}
-          rowKey={(j) => j.id}
-          empty="No jobs you can see yet"
-          columns={[
-            { header: "Job", className: "whitespace-nowrap", cell: (j) => <span className="font-semibold text-info">{j.number}</span> },
-            {
-              header: "Device",
-              cell: (j) => (
-                <div>
-                  <div>{j.device.model}</div>
-                  <div className="whitespace-nowrap text-xs text-muted">{j.device.serialNo}</div>
-                </div>
-              ),
-            },
-            { header: "Customer", cell: (j) => j.customer.name },
-            { header: "Site", cell: (j) => j.site.name },
-            { header: "Status", cell: (j) => <StatusChip status={j.status} /> },
-            { header: "Received", className: "whitespace-nowrap", cell: (j) => fmtDate(j.receivedAt) },
-          ]}
-        />
+        <div className="space-y-3">
+          {list.map((j) => (
+            <Card key={j.id} className="py-4">
+              <div className="font-semibold text-ink">
+                {j.number} · {j.device.model}
+              </div>
+              <div className={`text-sm ${j.status === "unrepairable" ? "text-danger" : "text-muted"}`}>
+                {reason(j)} · {j.customer.name}
+              </div>
+              <Link href={`/jobs/${j.id}`} className="mt-1 inline-block text-sm font-semibold text-info hover:underline">
+                Open ›
+              </Link>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -113,22 +107,63 @@ function PlanCard() {
   const row = (label: string, value: string) => (
     <div className="flex justify-between border-t border-line py-2 text-sm text-muted">
       <span>{label}</span>
-      <b className="whitespace-nowrap text-navy">{value}</b>
+      <b className="whitespace-nowrap text-ink">{value}</b>
     </div>
   );
   return (
     <Card>
-      <h2 className="text-base font-semibold text-navy">Your plan</h2>
+      <h2 className="text-base font-semibold text-ink">Your plan</h2>
       {!data ? (
         <Loading />
       ) : (
         <>
-          <div className="my-2 text-2xl font-bold text-navy">{data.plan?.name ?? "No plan"}</div>
+          <div className="my-2 text-[28px] font-bold text-navy">{data.plan?.name ?? "No plan"}</div>
           {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
-          {row("Active users", fmtLimit(data.users.used, data.users.limit))}
+          {row("Users", fmtLimit(data.users.used, data.users.limit))}
+          <Link href="/settings/company" className="mt-3 inline-block text-sm font-semibold text-info hover:underline">
+            Open ›
+          </Link>
         </>
       )}
     </Card>
+  );
+}
+
+function JobCards() {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<Filter>("all");
+  const search = useDebounced(q.trim());
+  const jobs = useApi<Page<JobRow>>(`/jobs${qs({ q: search, status: status === "all" ? "" : status, limit: 9 })}`);
+  return (
+    <>
+      <SearchBar value={q} onChange={setQ} placeholder="Search jobs, devices or customers" />
+      <Pills label="Status" options={FILTERS} value={status} onChange={setStatus} />
+      {jobs.error ? (
+        <ErrorState error={jobs.error} onRetry={jobs.reload} />
+      ) : !jobs.data ? (
+        <Loading />
+      ) : jobs.data.items.length === 0 ? (
+        <Card className="text-sm text-muted">{search || status !== "all" ? "No jobs match." : "No jobs you can see yet."}</Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {jobs.data.items.map((j) => (
+            <Card key={j.id} className="py-4">
+              <div className="text-xs font-semibold text-info">{j.number}</div>
+              <div className="font-semibold text-ink">{j.device.model}</div>
+              <div className="mb-2 text-sm text-muted">
+                {j.customer.name} · {j.site.name}
+              </div>
+              <StatusChip status={j.status} />
+              <div>
+                <Link href={`/jobs/${j.id}`} className="mt-2 inline-block text-sm font-semibold text-info hover:underline">
+                  Open ›
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

@@ -223,6 +223,46 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
     });
   });
 
+  describe('summaries for the list pages', () => {
+    it('job detail lists parts used and components worked on', async () => {
+      const jobs = (await get('admin@siamhash.demo', '/jobs?limit=100').expect(200)).body.items as Array<{ id: string }>;
+      const details = await Promise.all(jobs.map(async (j) => (await get('admin@siamhash.demo', `/jobs/${j.id}`).expect(200)).body));
+      const withParts = details.find((d) => d.parts.length > 0);
+      expect(withParts.parts[0]).toMatchObject({ qty: expect.any(Number), part: { sku: expect.any(String) } });
+      expect(withParts.components.length).toBeGreaterThan(0);
+    });
+
+    it('customer summary has totals and countries but no contact details', async () => {
+      const s = (await get('admin@siamhash.demo', '/customers/summary').expect(200)).body;
+      expect(s).toEqual({ customers: expect.any(Number), devicesIn: expect.any(Number), openJobs: expect.any(Number), countries: expect.any(Array) });
+      await get('tech@siamhash.demo', '/customers/summary').expect(403);
+    });
+
+    it('jobs filter by customer and open status', async () => {
+      const c = (await get('admin@siamhash.demo', '/customers?limit=1').expect(200)).body.items[0];
+      const r = (await get('admin@siamhash.demo', `/jobs?customerId=${c.id}&open=true&limit=100`).expect(200)).body;
+      expect(r.items.every((j: { customer: { id: string }; status: string }) => j.customer.id === c.id && !['qc_passed', 'dispatched'].includes(j.status))).toBe(true);
+      expect(r.total).toBe(c.openJobs);
+    });
+
+    it('sites count stocked parts; teams count open and done jobs', async () => {
+      const sites = (await get('admin@siamhash.demo', '/sites').expect(200)).body as Array<{ partsStocked: number }>;
+      expect(sites.some((s) => s.partsStocked > 0)).toBe(true);
+      const teams = (await get('admin@siamhash.demo', '/teams').expect(200)).body as Array<{ jobsOpen: number; jobsDone: number; members: Array<{ jobsOpen: number }> }>;
+      const alpha = teams[0];
+      expect(alpha.jobsOpen).toBe(alpha.members.reduce((a, m) => a + m.jobsOpen, 0));
+    });
+
+    it('part detail shows recent stock movements; categories list is distinct', async () => {
+      const parts = (await get('admin@siamhash.demo', '/parts?limit=100').expect(200)).body.items as Array<{ id: string }>;
+      const details = await Promise.all(parts.map(async (p) => (await get('admin@siamhash.demo', `/parts/${p.id}`).expect(200)).body));
+      const moved = details.find((d) => d.movements.length > 0);
+      expect(moved.movements[0]).toMatchObject({ type: expect.any(String), qty: expect.any(Number), site: { name: expect.any(String) } });
+      const cats = (await get('admin@siamhash.demo', '/parts/categories').expect(200)).body as string[];
+      expect(new Set(cats).size).toBe(cats.length);
+    });
+  });
+
   describe('parts catalog', () => {
     let id: string;
     const sku = `TST-${tag}`;

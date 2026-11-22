@@ -1,7 +1,8 @@
 "use client";
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
-import { useEffect, useId } from "react";
+import Link from "next/link";
+import { useId } from "react";
 import { Icon, type IconName } from "./icons";
 
 const cx = (...c: Array<string | false | null | undefined>) => c.filter(Boolean).join(" ");
@@ -114,7 +115,7 @@ export function Kpi({ label, value, caption, tone = "navy", icon = "dot" }: { la
         {label}
       </div>
       <div className={cx("mt-1 text-3xl font-bold", TONE[tone].text)}>{value}</div>
-      {caption && <div className="mt-0.5 text-xs text-muted">{caption}</div>}
+      {caption && <div className={cx("mt-0.5 text-xs font-semibold", tone === "navy" ? "text-ink" : TONE[tone].text)}>{caption}</div>}
     </Card>
   );
 }
@@ -183,32 +184,6 @@ export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", on
   );
 }
 
-// ───── Drawer (side panel for create / edit forms) ─────
-
-export function Drawer({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex justify-end">
-      <button aria-label="Close panel" className="absolute inset-0 bg-navy/30" onClick={onClose} />
-      <aside role="dialog" aria-modal="true" aria-label={title} className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold text-navy">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted hover:bg-field">
-            <Icon name="close" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-      </aside>
-    </div>
-  );
-}
-
 export const Loading = ({ label = "Loading…" }: { label?: string }) => <div className="py-10 text-center text-muted">{label}</div>;
 
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
@@ -249,29 +224,111 @@ export function Pager({ page, limit, total, onPage }: { page: number; limit: num
   );
 }
 
-/** Row of filters above a list. Wraps on narrow screens. */
-export const Toolbar = ({ children }: { children: ReactNode }) => <div className="mb-4 flex flex-wrap items-end gap-3 [&>*]:min-w-[180px] [&>*]:flex-1 md:[&>*]:max-w-[260px]">{children}</div>;
 
-/** Label / value pairs in a drawer or detail card. */
-export function DetailList({ rows }: { rows: Array<[string, ReactNode]> }) {
+// ───── Prototype page pieces ─────
+
+/** A link that looks like a button (Back to …, + Add …). */
+export function ButtonLink({ href, variant = "primary", className, children }: { href: string; variant?: Variant; className?: string; children: ReactNode }) {
   return (
-    <dl className="mb-5 grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
-      {rows.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt className="text-muted">{k}</dt>
-          <dd className="break-words text-ink">{v}</dd>
-        </div>
-      ))}
-    </dl>
+    <Link
+      href={href}
+      className={cx("inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors", VARIANT[variant], className)}
+    >
+      {children}
+    </Link>
   );
 }
 
-/** A block of free text (fault description, notes). */
-export function Note({ title, children }: { title: string; children: ReactNode }) {
+/** First-column link in a table (ticket number, customer name, site). */
+export const CellLink = ({ href, children }: { href: string; children: ReactNode }) => (
+  <Link href={href} className="font-semibold text-info hover:underline" onClick={(e) => e.stopPropagation()}>
+    {children}
+  </Link>
+);
+
+/** Row of three or four KPI cards. */
+export const KpiRow = ({ children }: { children: ReactNode }) => <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
+
+/** Full-width search box above a list (no label, like the prototype). */
+export function SearchBar({ value, onChange, placeholder, children }: { value: string; onChange: (v: string) => void; placeholder: string; children?: ReactNode }) {
   return (
-    <div className="mb-3 rounded-lg bg-field p-3 text-sm">
-      <div className="mb-1 text-xs font-medium text-muted">{title}</div>
-      <div className="whitespace-pre-wrap text-ink">{children}</div>
+    <div className="mb-4 flex flex-wrap gap-3">
+      <input
+        type="search"
+        aria-label={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={cx(inputClass, "min-w-[220px] flex-1")}
+      />
+      {children}
     </div>
+  );
+}
+
+/** Filter or tab pills: one is active (filled navy), the rest are light. */
+export function Pills<T extends string>({ options, value, onChange, label }: { options: Array<{ value: T; label: string }>; value: T; onChange: (v: T) => void; label: string }) {
+  return (
+    <div role="tablist" aria-label={label} className="mb-4 flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          role="tab"
+          aria-selected={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cx(
+            "h-10 rounded-lg px-4 text-sm font-semibold transition-colors",
+            o.value === value ? "bg-primary text-white" : "bg-field text-navy hover:bg-soft",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const SectionTitle = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <h2 className={cx("mb-3 text-base font-semibold text-ink", className)}>{children}</h2>
+);
+
+/** Form page body: a white card, at most 720px wide, with Cancel + Save at the bottom right. */
+export function FormCard({ children, error, cancelHref, submitLabel, busy, onSubmit }: {
+  children: ReactNode;
+  error?: string | null;
+  cancelHref: string;
+  submitLabel: string;
+  busy?: boolean;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <Card className="max-w-[720px]">
+      <form onSubmit={onSubmit} noValidate>
+        {error && <Alert>{error}</Alert>}
+        {children}
+        <div className="mt-2 flex justify-end gap-2.5">
+          <ButtonLink href={cancelHref} variant="secondary">
+            Cancel
+          </ButtonLink>
+          <Button type="submit" busy={busy}>
+            {submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+/** Label above value, as in the prototype detail cards. */
+export function Facts({ items, cols = 2 }: { items: Array<[string, ReactNode]>; cols?: 2 | 3 }) {
+  return (
+    <dl className={cx("grid gap-x-6 gap-y-4", cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+      {items.map(([k, v]) => (
+        <div key={k}>
+          <dt className="text-xs text-muted">{k}</dt>
+          <dd className="break-words text-sm font-semibold text-ink">{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

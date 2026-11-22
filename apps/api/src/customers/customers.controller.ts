@@ -54,6 +54,20 @@ export class CustomersController {
     return paged(rows.map(({ _count, ...c }) => ({ ...c, devices: _count.devices, openJobs: _count.jobs })), total, q);
   }
 
+  /** Totals for the KPI cards and the country filter. No contact details. */
+  @Roles('company_admin', 'site_manager', 'head_technician')
+  @Get('summary')
+  async summary(@CurrentUser() me: AuthUser) {
+    const db = this.db.tenant(me);
+    const [customers, devicesIn, openJobs, countries] = await Promise.all([
+      db.customer.count(),
+      db.device.count({ where: { jobs: { some: { status: { not: 'dispatched' } } } } }), // still at the repair center
+      db.job.count({ where: { status: { notIn: ['qc_passed', 'dispatched'] } } }),
+      db.customer.groupBy({ by: ['country'], where: { country: { not: null } }, orderBy: { country: 'asc' } }),
+    ]);
+    return { customers, devicesIn, openJobs, countries: countries.map((c) => c.country!) };
+  }
+
   @Roles('company_admin', 'site_manager', 'head_technician')
   @LogView('customer')
   @Get(':id')

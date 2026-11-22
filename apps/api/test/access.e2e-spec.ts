@@ -125,6 +125,23 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
 
     it('the platform owner cannot read company jobs through tenant endpoints', async () => {
       await get('owner@bmerc.demo', '/jobs').expect(403);
+      await get('owner@bmerc.demo', '/jobs/summary').expect(403);
+    });
+
+    it('job counts follow the same scope as the job list', async () => {
+      const all = (await get('admin@siamhash.demo', '/jobs/summary').expect(200)).body;
+      expect(all.total).toBe(7);
+      expect(Object.values(all.byStatus as Record<string, number>).reduce((a, n) => a + n, 0)).toBe(7);
+      expect((await get('stock@siamhash.demo', '/jobs/summary').expect(200)).body.total).toBe(4);
+      const listed = (await get('tech@siamhash.demo', '/jobs?limit=100').expect(200)).body.total;
+      expect((await get('tech@siamhash.demo', '/jobs/summary').expect(200)).body.total).toBe(listed);
+    });
+
+    it('a stock keeper asking for stock at a site they do not hold gets none', async () => {
+      const parts = (await get('stock@siamhash.demo', `/parts?siteId=${chonburi}&limit=100`).expect(200)).body.items as Array<{ totalQty: number }>;
+      expect(parts.every((p) => p.totalQty === 0)).toBe(true);
+      const own = (await get('stock@siamhash.demo', `/parts?siteId=${bangkok}&limit=100`).expect(200)).body.items as Array<{ totalQty: number }>;
+      expect(own.some((p) => p.totalQty > 0)).toBe(true);
     });
   });
 

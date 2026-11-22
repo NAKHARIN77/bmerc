@@ -19,11 +19,11 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
-  todo: 'To do',
+  todo: 'Pending',
   in_repair: 'In repair',
-  waiting_parts: 'Waiting for parts',
+  waiting_parts: 'Waiting',
   unrepairable: 'Cannot repair',
-  qc_passed: 'Passed QC',
+  qc_passed: 'Done',
   dispatched: 'Returned',
 };
 
@@ -43,7 +43,7 @@ export type JobPriority = (typeof JOB_PRIORITIES)[number];
 
 export const SITE_STATUSES = ['setup', 'active', 'inactive'] as const;
 export type SiteStatus = (typeof SITE_STATUSES)[number];
-export const SITE_STATUS_LABEL: Record<SiteStatus, string> = { setup: 'Setting up', active: 'Active', inactive: 'Inactive' };
+export const SITE_STATUS_LABEL: Record<SiteStatus, string> = { setup: 'Setup', active: 'Active', inactive: 'Inactive' };
 
 export { COUNTRIES } from './countries';
 import { COUNTRIES } from './countries';

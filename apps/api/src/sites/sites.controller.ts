@@ -38,8 +38,13 @@ export class SitesController {
 
   @Roles(...COMPANY_ROLES)
   @Get()
-  list(@CurrentUser() me: AuthUser) {
-    return this.db.tenant(me).site.findMany({ where: siteScope(me), select, orderBy: { name: 'asc' } });
+  async list(@CurrentUser() me: AuthUser) {
+    const db = this.db.tenant(me);
+    const sites = await db.site.findMany({ where: siteScope(me), select, orderBy: { name: 'asc' } });
+    // Number of different parts each site has in stock (prototype "Parts" column).
+    const stocked = await db.siteStock.groupBy({ by: ['siteId'], where: { siteId: { in: sites.map((s) => s.id) }, qty: { gt: 0 } }, _count: { _all: true } });
+    const count = new Map(stocked.map((r) => [r.siteId, r._count._all]));
+    return sites.map((s) => ({ ...s, partsStocked: count.get(s.id) ?? 0 }));
   }
 
   @Roles(...COMPANY_ROLES)

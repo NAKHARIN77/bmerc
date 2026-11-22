@@ -15,21 +15,17 @@ interface NavItem {
   roles: Role[] | "all";
 }
 
+// One "Main menu" group, as in the prototype. Each item shows only for the roles listed.
 const NAV: Array<{ group: string; items: NavItem[] }> = [
-  { group: "Overview", items: [{ label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all" }] },
   {
-    group: "Work",
+    group: "Main menu",
     items: [
+      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all" },
       { label: "Jobs", href: "/jobs", icon: "wrench", roles: [...ROLES] },
-      { label: "Customers", href: "/customers", icon: "mail", roles: ["company_admin", "site_manager", "head_technician"] },
-      { label: "Parts", href: "/parts", icon: "box", roles: [...ROLES] },
-    ],
-  },
-  {
-    group: "Management",
-    items: [
+      { label: "Customers", href: "/customers", icon: "users", roles: ["company_admin", "site_manager", "head_technician"] },
       { label: "Sites", href: "/sites", icon: "pin", roles: ["company_admin", "site_manager", "stock_keeper"] },
       { label: "Teams", href: "/teams", icon: "building", roles: ["company_admin", "site_manager", "head_technician"] },
+      { label: "Parts", href: "/parts", icon: "box", roles: [...ROLES] },
       { label: "Users", href: "/users", icon: "users", roles: ["company_admin", "site_manager"] },
       { label: "Company settings", href: "/settings/company", icon: "settings", roles: ["company_admin"] },
     ],

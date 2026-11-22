@@ -42,7 +42,21 @@ export class TeamsController {
       select: { id: true, fullName: true, role: true, isActive: true, teamId: true },
       orderBy: { fullName: 'asc' },
     });
-    return teams.map((t) => ({ ...t, members: members.filter((m) => m.teamId === t.id).map(({ teamId: _t, ...m }) => m) }));
+    // Open / done job counts per member and per team (done = passed QC or returned).
+    const counts = await this.db.tenant(me).job.groupBy({ by: ['assigneeId', 'status'], where: { assigneeId: { in: members.map((m) => m.id) } }, _count: { _all: true } });
+    const tally = (userId: string) => {
+      let open = 0, done = 0;
+      for (const c of counts) {
+        if (c.assigneeId !== userId) continue;
+        if (c.status === 'qc_passed' || c.status === 'dispatched') done += c._count._all;
+        else open += c._count._all;
+      }
+      return { jobsOpen: open, jobsDone: done };
+    };
+    return teams.map((t) => {
+      const list = members.filter((m) => m.teamId === t.id).map(({ teamId: _t, ...m }) => ({ ...m, ...tally(m.id) }));
+      return { ...t, members: list, jobsOpen: list.reduce((a, m) => a + m.jobsOpen, 0), jobsDone: list.reduce((a, m) => a + m.jobsDone, 0) };
+    });
   }
 
   @Roles(...COMPANY_ROLES)

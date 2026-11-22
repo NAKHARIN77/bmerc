@@ -23,6 +23,7 @@ const PartQuery = PageQuery.extend({
   q: z.string().trim().max(100).optional(), // name or SKU
   category: z.string().max(100).optional(),
   active: z.enum(['true', 'false', 'all']).default('true'),
+  siteId: z.uuid().optional(), // stock totals for this one site only
 });
 
 const select = { id: true, sku: true, name: true, category: true, unit: true, minQty: true, isActive: true, createdAt: true } as const;
@@ -49,7 +50,7 @@ export class PartsController {
     };
     const db = this.db.tenant(me);
     const [rows, total] = await Promise.all([
-      db.part.findMany({ where, select: { ...select, stock: { where: this.stockWhere(me), select: { qty: true } } }, orderBy: { name: 'asc' }, ...pageArgs(q) }),
+      db.part.findMany({ where, select: { ...select, stock: { where: this.stockWhere(me, q.siteId), select: { qty: true } } }, orderBy: { name: 'asc' }, ...pageArgs(q) }),
       db.part.count({ where }),
     ]);
     return paged(
@@ -63,6 +64,13 @@ export class PartsController {
   }
 
   @Roles(...COMPANY_ROLES)
+  @Get('categories')
+  async categories(@CurrentUser() me: AuthUser) {
+    const rows = await this.db.tenant(me).part.groupBy({ by: ['category'], where: { category: { not: null } }, orderBy: { category: 'asc' } });
+    return rows.map((r) => r.category!);
+  }
+
+  @Roles(...COMPANY_ROLES)
   @Get(':id')
   async get(@CurrentUser() me: AuthUser, @Param('id') id: string) {
     const p = await this.db.tenant(me).part.findUnique({
@@ -70,7 +78,21 @@ export class PartsController {
       select: { ...select, stock: { where: this.stockWhere(me), select: { qty: true, site: { select: { id: true, name: true } } } } },
     });
     if (!p) throw notFound('Part');
-    return { ...p, stock: p.stock.map((s) => ({ site: s.site, qty: s.qty, belowMin: s.qty < p.minQty })) };
+    const movements = await this.db.tenant(me).stockMovement.findMany({
+      where: { partId: p.id, ...this.stockWhere(me) },
+      select: { id: true, type: true, qty: true, reason: true, actorId: true, createdAt: true, site: { select: { name: true } }, job: { select: { id: true, number: true } } },
+      orderBy: { id: 'desc' },
+      take: 20,
+    });
+    const actorIds = [...new Set(movements.map((m) => m.actorId).filter((a): a is string => !!a))];
+    const actors = new Map(
+      (await this.db.raw.user.findMany({ where: { id: { in: actorIds }, companyId: me.companyId! }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]),
+    );
+    return {
+      ...p,
+      stock: p.stock.map((s) => ({ site: s.site, qty: s.qty, belowMin: s.qty < p.minQty })),
+      movements: movements.map(({ actorId, ...m }) => ({ ...m, id: m.id.toString(), by: actorId ? (actors.get(actorId) ?? null) : null })),
+    };
   }
 
   @Roles('company_admin', 'stock_keeper')
@@ -97,7 +119,9 @@ export class PartsController {
     return after;
   }
 
-  private stockWhere(me: AuthUser) {
+  /** Stock rows this user may see; with siteId, only that site (and nothing if it is not one of theirs). */
+  private stockWhere(me: AuthUser, siteId?: string) {
+    if (siteId) return { siteId: me.siteIds === null || me.siteIds.includes(siteId) ? siteId : { in: [] as string[] } };
     return me.siteIds === null ? {} : { siteId: { in: me.siteIds } };
   }
 }
