@@ -1,0 +1,354 @@
+<title>BMERC System Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: single reading column with a sticky section index on wide screens; tables scroll inside their own boxes */
+:root{
+  --bg:#f7f8fc; --surface:#ffffff; --fg:#151c27; --muted:#4a5262; --line:#e1e6f0;
+  --navy:#022448; --accent:#006398; --accent-soft:#e3eefb;
+  --ok:#047857; --ok-soft:#d8f3e6; --warn:#a15c07; --warn-soft:#fdf1d6; --bad:#b42318; --bad-soft:#fde6e4;
+  --code-bg:#eef2f9;
+  --f-body:"IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1420; --surface:#141d2c; --fg:#e6ebf4; --muted:#9aa6ba; --line:#253247;
+  --navy:#cfe0f7; --accent:#5fb4e8; --accent-soft:#16304a;
+  --ok:#4ccf9a; --ok-soft:#123a2c; --warn:#f0b54e; --warn-soft:#3a2c10; --bad:#ff8a80; --bad-soft:#3d1a18;
+  --code-bg:#1b2638; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0d1420; --surface:#141d2c; --fg:#e6ebf4; --muted:#9aa6ba; --line:#253247;
+  --navy:#cfe0f7; --accent:#5fb4e8; --accent-soft:#16304a;
+  --ok:#4ccf9a; --ok-soft:#123a2c; --warn:#f0b54e; --warn-soft:#3a2c10; --bad:#ff8a80; --bad-soft:#3d1a18;
+  --code-bg:#1b2638; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto;padding-block:40px 80px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px}
+nav.toc{position:sticky;top:calc(24px + env(safe-area-inset-top,0px));align-self:start;font-size:13.5px}
+nav.toc b{display:block;font-size:11px;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:4px 0 4px 12px;border-left:2px solid var(--line)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-left-color:var(--accent)}
+main{min-width:0}
+header.doc{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:8px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;color:var(--accent)}
+h1{font-size:34px;line-height:1.25;color:var(--navy);margin:6px 0 10px;text-wrap:balance}
+h2{font-size:23px;color:var(--navy);margin:56px 0 12px;padding-top:8px;text-wrap:balance;scroll-margin-top:16px}
+h3{font-size:17px;color:var(--navy);margin:28px 0 8px}
+p{margin:0 0 12px;max-width:72ch}
+.lede{color:var(--muted);font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 24px;font-size:13px;color:var(--muted);margin-top:14px}
+.meta span b{color:var(--fg);font-weight:600}
+code,.mono{font-family:var(--f-mono);font-size:.88em;background:var(--code-bg);padding:1px 6px;border-radius:4px}
+ul,ol{padding-left:22px;margin:0 0 12px;max-width:72ch}
+li{margin-bottom:4px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin:12px 0 18px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-weight:600;background:var(--code-bg);color:var(--navy);padding:10px 14px;white-space:nowrap;border-bottom:1px solid var(--line)}
+td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:top}
+tr:first-child td{border-top:0}
+td.c,th.c{text-align:center}
+.y{color:var(--ok);font-weight:700}
+.p{color:var(--warn);font-weight:600;font-size:13px}
+.n{color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.info{background:var(--accent-soft);color:var(--accent)}
+.note{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:14px 18px;margin:14px 0}
+.note.warn{border-color:var(--warn);background:var(--warn-soft)}
+.note b:first-child{color:var(--navy)}
+.note.warn b:first-child{color:var(--warn)}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;margin:12px 0 18px}
+pre.mermaid{margin:0;background:transparent;font-family:var(--f-mono);font-size:12px}
+.weeks{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0}
+.week{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.week .d{font-family:var(--f-mono);font-size:12px;color:var(--accent)}
+.week h4{margin:2px 0 6px;font-size:15px;color:var(--navy)}
+.week ul{font-size:13.5px;padding-left:18px;margin:0}
+.qs{counter-reset:q;list-style:none;padding:0}
+.qs li{counter-increment:q;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px 12px 52px;position:relative;margin-bottom:10px;max-width:none}
+.qs li::before{content:"Q" counter(q);position:absolute;left:14px;top:12px;font-family:var(--f-mono);font-size:13px;font-weight:500;color:var(--accent)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr;gap:0;padding-block:24px 60px}nav.toc{display:none}h1{font-size:27px}}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="สารบัญ">
+  <b>สารบัญ</b>
+  <a href="#overview">1. ภาพรวม</a>
+  <a href="#stack">2. เทคโนโลยี</a>
+  <a href="#tenancy">3. การแยกข้อมูลบริษัท</a>
+  <a href="#roles">4. บทบาทและสิทธิ์</a>
+  <a href="#data">5. โครงสร้างข้อมูล</a>
+  <a href="#jobflow">6. สถานะงานซ่อม</a>
+  <a href="#rules">7. กฎของระบบ</a>
+  <a href="#api">8. API</a>
+  <a href="#prod">9. ก่อนขึ้นระบบจริง</a>
+  <a href="#plan">10. แผนงาน 4 สัปดาห์</a>
+  <a href="#questions">11. เรื่องที่ต้องตัดสินใจ</a>
+</nav>
+
+<main>
+<header class="doc">
+  <div class="eyebrow">BMERC · BACKEND DESIGN · v0.1 DRAFT</div>
+  <h1>เอกสารออกแบบระบบหลังบ้าน BMERC</h1>
+  <p class="lede">ระบบจัดการศูนย์ซ่อมเครื่องขุด Bitcoin แบบ SaaS หลายบริษัทใช้ร่วมกัน ออกแบบจาก clickable prototype ที่มีอยู่ เพื่อให้ทีม dev ใช้เป็นแบบในการสร้างระบบจริง</p>
+  <div class="meta">
+    <span>สถานะ <b>ร่างแรก รอตรวจ</b></span>
+    <span>อัปเดต <b>21 พ.ย. 2026</b></span>
+    <span>เป้าหมายเปิดขาย <b>ธ.ค. 2026</b></span>
+    <span>โฟลเดอร์โปรเจกต์ <b class="mono">D:\bmerc</b></span>
+  </div>
+</header>
+
+<h2 id="overview">1. ภาพรวมและคำศัพท์</h2>
+<p>ระบบมีผู้ใช้ 2 ชั้น ชั้นบนคือ <b>เจ้าของแพลตฟอร์ม</b> (เรา) ที่ขายแพ็กเกจให้ <b>บริษัทศูนย์ซ่อม</b> ชั้นล่างคือพนักงานในแต่ละบริษัทที่ใช้ระบบรับเครื่องจากลูกค้า ซ่อม ตัดอะไหล่ และติด QR</p>
+<div class="tbl"><table>
+<thead><tr><th>คำ</th><th>ในโค้ด</th><th>ความหมาย</th></tr></thead>
+<tbody>
+<tr><td>บริษัท</td><td><code>Company</code></td><td>ศูนย์ซ่อมที่สมัครใช้ระบบ (tenant) ข้อมูลของแต่ละบริษัทแยกขาดจากกัน</td></tr>
+<tr><td>ลูกค้า</td><td><code>Customer</code></td><td>เจ้าของเครื่องขุด เช่น ฟาร์มขุด ที่ส่งเครื่องมาซ่อม</td></tr>
+<tr><td>ไซต์</td><td><code>Site</code></td><td>สถานที่ซ่อม มีทีมช่างและสต็อกอะไหล่ของตัวเอง (ดู Q1)</td></tr>
+<tr><td>ทีม</td><td><code>Team</code></td><td>กลุ่มช่างประจำไซต์ มีหัวหน้าช่าง 1 คน</td></tr>
+<tr><td>เครื่อง</td><td><code>Device</code></td><td>เครื่องขุด 1 เครื่อง ระบุด้วย serial และรหัส QR เก็บประวัติซ่อมทุกครั้ง</td></tr>
+<tr><td>งานซ่อม</td><td><code>Job</code></td><td>ใบงาน 1 ใบต่อการรับเครื่อง 1 ครั้ง เลขรูปแบบ <code>TK-2026-0113</code></td></tr>
+<tr><td>อะไหล่</td><td><code>Part</code></td><td>รายการอะไหล่ในแคตตาล็อกของบริษัท เช่น ชิป BM1398</td></tr>
+</tbody></table></div>
+
+<h2 id="stack">2. เทคโนโลยีที่ใช้</h2>
+<div class="tbl"><table>
+<thead><tr><th>ส่วน</th><th>เลือกใช้</th><th>เหตุผล</th></tr></thead>
+<tbody>
+<tr><td>Backend API</td><td>NestJS 11 + TypeScript</td><td>แบ่ง module ชัด มี Guard/Interceptor สำหรับสิทธิ์และ tenant ในตัว</td></tr>
+<tr><td>ฐานข้อมูล</td><td>PostgreSQL 16</td><td>รองรับ transaction และ Row-Level Security</td></tr>
+<tr><td>ORM / Migration</td><td>Prisma</td><td>schema อ่านง่าย type-safe และมี migration ในตัว</td></tr>
+<tr><td>Frontend</td><td>Next.js (App Router)</td><td>แปลงหน้าจอจาก prototype ได้ตรง ๆ</td></tr>
+<tr><td>แอปช่าง</td><td>PWA ในโปรเจกต์ Next.js เดียวกัน</td><td>สแกน QR ด้วยกล้องมือถือได้ ไม่ต้องขึ้น App Store</td></tr>
+<tr><td>Auth</td><td>JWT access 15 นาที + refresh token ใน httpOnly cookie</td><td>refresh token เก็บ hash ใน DB เพื่อ revoke ได้</td></tr>
+<tr><td>Background jobs</td><td>pg-boss (คิวบน PostgreSQL)</td><td>ใช้ส่งอีเมล แจ้งเตือนโควตา ตัดรอบบิล โดยไม่ต้องเพิ่ม Redis ในเฟสแรก</td></tr>
+<tr><td>อีเมล</td><td>Resend หรือ AWS SES</td><td>ใช้ส่งคำเชิญ รีเซ็ตรหัสผ่าน และใบแจ้งหนี้</td></tr>
+<tr><td>รับชำระเงิน</td><td>เฟสแรกใช้โอนเงิน + แนบสลิป แล้วค่อยต่อ Omise</td><td>ดูเหตุผลในข้อ 10</td></tr>
+<tr><td>Deploy</td><td>Docker + managed PostgreSQL</td><td>มี backup อัตโนมัติ (ดู Q5)</td></tr>
+</tbody></table></div>
+<p>โครงสร้างโปรเจกต์ใช้ monorepo เดียว:</p>
+<div class="diagram"><pre style="margin:0;font-family:var(--f-mono);font-size:13px;line-height:1.6">bmerc/
+├─ apps/
+│  ├─ api/          NestJS: modules auth, companies, customers, sites, teams,
+│  │                users, jobs, devices, parts, stock, billing, audit, platform
+│  └─ web/          Next.js: หน้าแอดมิน, หน้าช่าง (PWA), หน้าเจ้าของแพลตฟอร์ม
+├─ packages/
+│  └─ shared/       type และ validation schema (zod) ที่ใช้ร่วมกัน
+├─ prisma/          schema.prisma + migrations + seed
+├─ docker-compose.yml   PostgreSQL สำหรับเครื่อง dev
+└─ docs/</pre></div>
+
+<h2 id="tenancy">3. การแยกข้อมูลแต่ละบริษัท</h2>
+<p>ทุกบริษัทใช้ฐานข้อมูลเดียวกัน แต่ทุกตารางที่เป็นข้อมูลของบริษัทต้องมีคอลัมน์ <code>company_id</code> และป้องกันข้อมูลรั่วข้ามบริษัทไว้ 2 ชั้น:</p>
+<ol>
+<li><b>ชั้นแอป:</b> ดึง <code>company_id</code> จาก JWT เท่านั้น ห้ามรับจาก body หรือ query แล้ว Prisma extension จะเติม <code>where company_id = ?</code> ให้ทุก query อัตโนมัติ</li>
+<li><b>ชั้นฐานข้อมูล:</b> เปิด PostgreSQL Row-Level Security ทุกตาราง โดยตั้งค่า <code>SET LOCAL app.company_id</code> ในแต่ละ transaction ถ้าโค้ดลืมกรองข้อมูล DB จะไม่คืนข้อมูลบริษัทอื่นให้</li>
+</ol>
+<div class="note"><b>เจ้าของแพลตฟอร์มดูข้อมูลบริษัทอื่นได้แค่แบบอ่านอย่างเดียว</b> และทุกครั้งที่เข้าดูต้องลง audit log เพื่อให้เป็นไปตาม PDPA ส่วนหน้าภาพรวมให้ใช้ตัวเลขสรุป ไม่แสดงข้อมูลรายคน</div>
+
+<h2 id="roles">4. บทบาทและสิทธิ์</h2>
+<p>ผู้ใช้ 1 คนอยู่ได้ 1 บริษัทและมี 1 บทบาท ส่วนเจ้าของแพลตฟอร์มเป็นบัญชีแยก (<code>is_platform_admin</code>) ที่ไม่ผูกกับบริษัทใด</p>
+<div class="tbl"><table>
+<thead><tr><th>การกระทำ</th><th class="c">เจ้าของแพลตฟอร์ม</th><th class="c">แอดมินบริษัท</th><th class="c">หัวหน้าช่าง</th><th class="c">ช่าง</th><th class="c">คนคุมสต็อก</th></tr></thead>
+<tbody>
+<tr><td>ตั้งค่าบริษัท, แพ็กเกจ, ข้อมูลออกบิล</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เพิ่มหรือแก้ลูกค้า ไซต์ ทีม</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">ดูได้</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เชิญหรือปิดบัญชีผู้ใช้</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>รับเครื่องเข้า (เปิดใบงาน)</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>มอบหมายงานให้ช่าง</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เปลี่ยนสถานะงาน, เขียนบันทึกซ่อม</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c n">—</td></tr>
+<tr><td>เบิกอะไหล่เข้างาน</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c y">✓</td></tr>
+<tr><td>รับอะไหล่เข้า, ปรับยอดสต็อก</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
+<tr><td>จัดการแคตตาล็อกอะไหล่</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
+<tr><td>พิมพ์ QR, ดูประวัติเครื่อง</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">ดูได้</td></tr>
+<tr><td>ดูรายงาน</td><td class="c n">ตัวเลขรวม</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c p">สต็อก</td></tr>
+<tr><td>ดู audit log</td><td class="c y">ทุกบริษัท</td><td class="c p">บริษัทตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>ตั้งโควตา, ระงับหรือเปิดบริษัท, ดูรายได้</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+</tbody></table></div>
+<p>แพ็กเกจ Basic มีผู้ใช้ได้ 1 บัญชีที่เป็นแอดมินบริษัท บทบาทหัวหน้าช่าง ช่าง และคนคุมสต็อก ใช้ได้เฉพาะแพ็กเกจ Pro ตามหน้า Pricing ในต้นแบบ</p>
+
+<h2 id="data">5. โครงสร้างข้อมูล</h2>
+<p>แผนภาพแสดงเฉพาะความสัมพันธ์หลัก ส่วนคอลัมน์ทั้งหมดอยู่ในตารางด้านล่าง</p>
+<div class="diagram"><pre class="mermaid">
+erDiagram
+  COMPANY ||--o{ USER : employs
+  COMPANY ||--|| SUBSCRIPTION : has
+  SUBSCRIPTION }o--|| PLAN : uses
+  SUBSCRIPTION ||--o{ INVOICE : bills
+  COMPANY ||--o{ CUSTOMER : serves
+  COMPANY ||--o{ SITE : runs
+  CUSTOMER |o--o{ SITE : "owns (Q1)"
+  SITE ||--o{ TEAM : hosts
+  TEAM ||--o{ USER : members
+  CUSTOMER ||--o{ DEVICE : owns
+  DEVICE ||--o{ JOB : "repaired in"
+  SITE ||--o{ JOB : "handled at"
+  USER |o--o{ JOB : assigned
+  JOB ||--o{ JOB_EVENT : timeline
+  JOB ||--o{ JOB_PART : uses
+  PART ||--o{ JOB_PART : "used as"
+  PART ||--o{ SITE_STOCK : "held as"
+  SITE ||--o{ SITE_STOCK : holds
+  PART ||--o{ STOCK_MOVEMENT : ledger
+  COMPANY ||--o{ AUDIT_LOG : records
+</pre></div>
+
+<h3>ตารางระดับแพลตฟอร์ม</h3>
+<div class="tbl"><table>
+<thead><tr><th>ตาราง</th><th>คอลัมน์สำคัญ</th><th>หมายเหตุ</th></tr></thead>
+<tbody>
+<tr><td><code>companies</code></td><td>id, name, legal_name, tax_id, billing_email, billing_address, timezone, status <span class="pill info">active / suspended / closed</span></td><td>tenant หลัก</td></tr>
+<tr><td><code>plans</code></td><td>code <span class="pill info">trial / basic / pro</span>, price_thb, max_jobs_per_month, max_sites, max_users, features (jsonb)</td><td>ค่า null = ไม่จำกัด</td></tr>
+<tr><td><code>subscriptions</code></td><td>company_id, plan_id, status <span class="pill info">trialing / active / past_due / suspended</span>, current_period_start/end, override_limits (jsonb)</td><td>override ใช้กับหน้า "Edit limits"</td></tr>
+<tr><td><code>invoices</code></td><td>company_id, number <code>INV-2026-011</code>, period, amount_thb, vat_thb, status <span class="pill info">open / paid / void</span>, due_at, paid_at, slip_url</td><td>ห้ามลบ ให้ void แทน</td></tr>
+<tr><td><code>users</code></td><td>id, company_id (null สำหรับ platform admin), email, password_hash, full_name, role, team_id, is_active, is_platform_admin, last_login_at</td><td>อีเมลห้ามซ้ำทั้งระบบ</td></tr>
+<tr><td><code>refresh_tokens</code></td><td>user_id, token_hash, expires_at, revoked_at, user_agent</td><td>เปลี่ยน token ใหม่ทุกครั้งที่ refresh</td></tr>
+<tr><td><code>audit_logs</code></td><td>company_id, actor_user_id, action, entity_type, entity_id, before (jsonb), after (jsonb), ip, created_at</td><td>เพิ่มได้อย่างเดียว ห้ามแก้หรือลบ</td></tr>
+</tbody></table></div>
+
+<h3>ตารางของแต่ละบริษัท (มี <code>company_id</code> ทุกตาราง)</h3>
+<div class="tbl"><table>
+<thead><tr><th>ตาราง</th><th>คอลัมน์สำคัญ</th><th>หมายเหตุ</th></tr></thead>
+<tbody>
+<tr><td><code>customers</code></td><td>name, contact_name, email, phone, country</td><td></td></tr>
+<tr><td><code>sites</code></td><td>name, customer_id (nullable), country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>ดู Q1</td></tr>
+<tr><td><code>teams</code></td><td>site_id, name, head_user_id</td><td></td></tr>
+<tr><td><code>devices</code></td><td>customer_id, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, serial_no)</td></tr>
+<tr><td><code>jobs</code></td><td>number, device_id, customer_id, site_id, assignee_id, status, priority, reported_fault, work_note, unrepairable_reason, received_at, qc_passed_at, dispatched_at</td><td>เลขใบงานเรียงต่อกันในแต่ละบริษัท</td></tr>
+<tr><td><code>job_events</code></td><td>job_id, from_status, to_status, actor_id, note, created_at</td><td>ใช้แสดง timeline ในหน้ารายละเอียดงาน</td></tr>
+<tr><td><code>job_components</code></td><td>job_id, component, work_done, result <span class="pill info">repaired / replaced / unchanged</span></td><td>ตาราง "Component / Work done" ในหน้าประวัติเครื่อง</td></tr>
+<tr><td><code>parts</code></td><td>sku, name, category, unit, min_qty, is_active</td><td>unique (company_id, sku)</td></tr>
+<tr><td><code>site_stock</code></td><td>site_id, part_id, qty</td><td>ยอดคงเหลือ PK (site_id, part_id) มี CHECK qty ≥ 0</td></tr>
+<tr><td><code>stock_movements</code></td><td>site_id, part_id, type <span class="pill info">in / out / adjust</span>, qty (+/−), job_id, reason, actor_id</td><td>สมุดบัญชีสต็อก เพิ่มได้อย่างเดียว</td></tr>
+<tr><td><code>job_parts</code></td><td>job_id, part_id, qty, movement_id</td><td>อะไหล่ที่ใช้ในงาน ผูกกับ movement</td></tr>
+<tr><td><code>qr_print_logs</code></td><td>job_id, printed_by, copies, printed_at</td><td>ใช้ในส่วน "Print history"</td></tr>
+<tr><td><code>counters</code></td><td>company_id, key (เช่น <code>job:2026</code>), value</td><td>ใช้ออกเลขใบงาน ล็อกแถวด้วย <code>FOR UPDATE</code></td></tr>
+</tbody></table></div>
+
+<h2 id="jobflow">6. สถานะงานซ่อม</h2>
+<p>ใช้ 5 คอลัมน์ตามบอร์ดในต้นแบบ แล้วเพิ่มอีก 2 สถานะท้ายสุดสำหรับส่งคืนลูกค้า ห้ามแก้ status ตรง ๆ ทุกครั้งที่เปลี่ยนสถานะต้องผ่าน service และบันทึกลง <code>job_events</code></p>
+<div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> todo: รับเครื่อง
+  todo --> in_repair: ช่างเริ่มซ่อม
+  in_repair --> waiting_parts: ขออะไหล่
+  waiting_parts --> in_repair: อะไหล่มาแล้ว
+  in_repair --> qc_passed: ผ่าน QC (ออก QR)
+  in_repair --> unrepairable: ซ่อมไม่ได้ (ต้องระบุเหตุผล)
+  qc_passed --> dispatched: ส่งคืนลูกค้า
+  unrepairable --> dispatched: ส่งคืนลูกค้า
+  dispatched --> [*]
+</pre></div>
+<div class="tbl"><table>
+<thead><tr><th>สถานะ</th><th>คอลัมน์บนบอร์ด</th><th>เงื่อนไข</th></tr></thead>
+<tbody>
+<tr><td><code>todo</code></td><td>To Do (Queued)</td><td>ยังไม่มีช่างหรือยังไม่เริ่มงาน</td></tr>
+<tr><td><code>in_repair</code></td><td>In Repair</td><td>ต้องมี assignee</td></tr>
+<tr><td><code>waiting_parts</code></td><td>Waiting for Parts</td><td>ระบุอะไหล่ที่รอ</td></tr>
+<tr><td><code>unrepairable</code></td><td>Cannot Repair</td><td>ต้องมี <code>unrepairable_reason</code></td></tr>
+<tr><td><code>qc_passed</code></td><td>Completed / QC</td><td>สร้าง QR ให้ device ถ้ายังไม่มี และพิมพ์ฉลากได้</td></tr>
+<tr><td><code>dispatched</code></td><td>(ไม่แสดงบนบอร์ด)</td><td>ปิดงานแล้ว แก้ไขไม่ได้</td></tr>
+</tbody></table></div>
+<p>การลากการ์ดบนบอร์ดเรียก API เปลี่ยนสถานะเดียวกัน ถ้าลากไปสถานะที่ไม่อนุญาต ให้ API ตอบ <code>409</code> แล้วการ์ดเด้งกลับที่เดิม</p>
+
+<h2 id="rules">7. กฎของระบบ</h2>
+<h3>สต็อกอะไหล่</h3>
+<ul>
+<li>การเบิก รับเข้า และปรับยอด ต้องทำใน transaction เดียวกัน 3 ขั้น: <code>SELECT … FOR UPDATE</code> แถว site_stock, เขียน stock_movements แล้วอัปเดตยอด ป้องกันช่าง 2 คนเบิกพร้อมกันจนสต็อกติดลบ</li>
+<li>ถ้าเบิกเกินยอดคงเหลือ ให้ปฏิเสธพร้อมข้อความว่าเหลือเท่าไร</li>
+<li>การปรับยอดต้องระบุเหตุผล (ตามหน้า Adjust stock)</li>
+<li>ถ้ายอดต่ำกว่า <code>min_qty</code> ให้แสดงสถานะ Low บนแดชบอร์ด ถ้าเหลือ 0 ให้แสดง Out และแจ้งเตือนคนคุมสต็อก</li>
+<li>เมื่อยกเลิกการใช้อะไหล่ในงาน ให้สร้าง movement ย้อนกลับ ห้ามลบรายการเดิม</li>
+</ul>
+<h3>โควตาและแพ็กเกจ</h3>
+<ul>
+<li>นับใบงานที่เปิดในเดือนปฏิทินนั้นตาม timezone ของบริษัท</li>
+<li>เมื่อใช้ถึง 80% ให้ขึ้นแถบเตือนในแอปและส่งอีเมลถึงแอดมิน 1 ครั้งต่อเดือน</li>
+<li>เมื่อใช้ถึง 100% จะเปิดใบงานใหม่ไม่ได้ แต่งานที่เปิดไว้แล้วทำต่อได้ตามปกติ (ดู Q3)</li>
+<li>จำนวนไซต์และผู้ใช้ถูกตรวจตอนสร้างใหม่ ใช้ค่าจาก <code>override_limits</code> ก่อน ถ้าไม่มีให้ใช้ค่าจาก plan</li>
+</ul>
+<h3>การชำระเงินและการระงับบริษัท</h3>
+<ul>
+<li>ออกใบแจ้งหนี้วันที่ 1 ของเดือน กำหนดชำระภายใน 7 วัน (ตามหน้า Payment details)</li>
+<li>เมื่อเกินกำหนด สถานะจะเป็น <code>past_due</code> และขึ้นแถบเตือน ถ้าเกินกำหนดไปอีก 7 วันจะเป็น <code>suspended</code></li>
+<li>บริษัทที่ถูกระงับยังล็อกอินได้ แต่เห็นได้แค่หน้า "Account suspended" กับหน้าชำระเงิน ข้อมูลไม่ถูกลบ</li>
+<li>เจ้าของแพลตฟอร์มกด Suspend หรือ Activate เองได้ และทุกครั้งต้องลง audit log</li>
+</ul>
+<h3>QR และประวัติเครื่อง</h3>
+<ul>
+<li>รหัส QR สุ่มแบบเดาไม่ได้ เช่น <code>BMERC-7K3QX9MD</code> ไม่ใช้เลขเรียง เพื่อไม่ให้คนอื่นไล่เดาดูข้อมูลได้</li>
+<li>สร้างรหัสครั้งเดียวต่อเครื่อง เมื่องานแรกของเครื่องผ่าน QC งานถัดไปใช้รหัสเดิม</li>
+<li>เมื่อสแกน QR ต้องล็อกอินและอยู่บริษัทเดียวกันถึงจะเห็นประวัติ</li>
+</ul>
+<h3>Audit log</h3>
+<p>ต้องบันทึกอย่างน้อยเหตุการณ์เหล่านี้: ล็อกอินสำเร็จหรือล้มเหลว, เปลี่ยนสถานะงาน, มอบหมายงาน, ทุก movement ของสต็อก, เปลี่ยนสิทธิ์ผู้ใช้, เปลี่ยนแพ็กเกจหรือโควตา, Suspend/Activate และการที่เจ้าของแพลตฟอร์มเข้าดูข้อมูลบริษัท</p>
+
+<h2 id="api">8. API</h2>
+<p>REST, JSON, prefix <code>/api/v1</code> เอกสาร OpenAPI สร้างอัตโนมัติจาก NestJS Swagger ไว้ที่ <code>/api/docs</code> ทุก endpoint (ยกเว้น auth) ต้องมี JWT และตรวจสิทธิ์ตามข้อ 4</p>
+<div class="tbl"><table>
+<thead><tr><th>กลุ่ม</th><th>Endpoint</th><th>ใช้ในหน้า</th></tr></thead>
+<tbody>
+<tr><td>Auth</td><td><code>POST /auth/register</code> · <code>/auth/login</code> · <code>/auth/refresh</code> · <code>/auth/logout</code> · <code>/auth/forgot-password</code> · <code>/auth/reset-password</code> · <code>/auth/accept-invite</code></td><td>Log in, Register, Change password</td></tr>
+<tr><td>Me</td><td><code>GET /me</code> · <code>PATCH /me/password</code></td><td>ทุกหน้า</td></tr>
+<tr><td>Company</td><td><code>GET/PATCH /company</code> · <code>GET /company/usage</code></td><td>Setup wizard, Subscription</td></tr>
+<tr><td>Users</td><td><code>GET/POST /users</code> · <code>PATCH /users/:id</code> · <code>POST /users/:id/deactivate</code></td><td>Technicians, Add technician</td></tr>
+<tr><td>Customers</td><td><code>GET/POST /customers</code> · <code>GET/PATCH /customers/:id</code></td><td>Customers, Customer detail</td></tr>
+<tr><td>Sites</td><td><code>GET/POST /sites</code> · <code>GET/PATCH /sites/:id</code> · <code>GET /sites/:id/stock</code></td><td>Sites, Site detail</td></tr>
+<tr><td>Teams</td><td><code>GET/POST /teams</code> · <code>PATCH /teams/:id</code> · <code>PUT /teams/:id/members</code></td><td>Teams, New team</td></tr>
+<tr><td>Jobs</td><td><code>GET/POST /jobs</code> · <code>GET /jobs/:id</code> · <code>POST /jobs/:id/assign</code> · <code>POST /jobs/:id/transition</code> · <code>PATCH /jobs/:id/note</code> · <code>POST /jobs/:id/parts</code> · <code>DELETE /jobs/:id/parts/:jpId</code> · <code>PUT /jobs/:id/components</code></td><td>Jobs, Job detail, Receive job, Bench board</td></tr>
+<tr><td>Board</td><td><code>GET /board?site=&amp;assignee=</code></td><td>Technician Bench Board</td></tr>
+<tr><td>Devices / QR</td><td><code>GET /devices/by-qr/:code</code> · <code>GET /devices/:id/history</code> · <code>GET /jobs/:id/label</code> (PDF 50×30 mm) · <code>POST /jobs/:id/label/printed</code></td><td>Scan QR, Device history, Print QR</td></tr>
+<tr><td>Parts</td><td><code>GET/POST /parts</code> · <code>GET/PATCH /parts/:id</code> · <code>GET /parts/:id/movements</code></td><td>Parts catalog, Part detail</td></tr>
+<tr><td>Stock</td><td><code>GET /stock</code> · <code>POST /stock/in</code> · <code>POST /stock/out</code> · <code>POST /stock/adjust</code></td><td>Stock, Stock in/out, Adjust</td></tr>
+<tr><td>Reports</td><td><code>GET /reports/turnaround</code> · <code>/reports/parts-usage</code> · <code>/reports/jobs-by-technician</code> · <code>?format=csv</code></td><td>Reports</td></tr>
+<tr><td>Billing</td><td><code>GET /billing/invoices</code> · <code>POST /billing/invoices/:id/slip</code> · <code>PATCH /billing/details</code></td><td>Subscription, Payment details</td></tr>
+<tr><td>Audit</td><td><code>GET /audit-logs</code></td><td>Audit log</td></tr>
+<tr><td>Platform</td><td><code>GET /platform/companies</code> · <code>GET /platform/overview</code> · <code>PATCH /platform/companies/:id/limits</code> · <code>POST /platform/companies/:id/suspend</code> · <code>/activate</code> · <code>POST /platform/invoices/:id/mark-paid</code> · <code>GET /platform/revenue</code> · <code>GET /platform/health</code></td><td>Companies, Quotas, Revenue, Platform health</td></tr>
+</tbody></table></div>
+<p>รายการทั้งหมดรองรับ <code>?page=&amp;limit=&amp;q=&amp;sort=</code> และรูปแบบ error ใช้ร่วมกันคือ <code>{ "code": "STOCK_INSUFFICIENT", "message": "...", "details": {...} }</code></p>
+
+<h2 id="prod">9. สิ่งที่ต้องมีก่อนขึ้นระบบจริง</h2>
+<div class="tbl"><table>
+<thead><tr><th>หมวด</th><th>รายการ</th><th>ต้องมีก่อนเปิดขาย</th></tr></thead>
+<tbody>
+<tr><td>ความปลอดภัย</td><td>เก็บรหัสผ่านด้วย Argon2id, rate limit ที่ login/forgot, ใช้ HTTPS อย่างเดียว, CORS แบบระบุโดเมน, helmet headers, validate input ทุก endpoint</td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>แยกข้อมูลบริษัท</td><td>RLS + test อัตโนมัติที่พยายามอ่านข้อมูลข้ามบริษัทแล้วต้องไม่ได้</td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>Backup</td><td>backup รายวัน เก็บ 14 วัน และ <b>ทดลองกู้คืนจริง 1 ครั้งก่อนเปิดขาย</b></td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>Migration</td><td>ใช้ <code>prisma migrate deploy</code> ใน CI ห้ามแก้ DB production ด้วยมือ</td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>Environment</td><td>แยก dev / staging / production, secret อยู่ใน env ไม่ commit ลง git</td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>Monitoring</td><td>Sentry จับ error, uptime check, log แบบ JSON</td><td><span class="pill warn">ควรมี</span></td></tr>
+<tr><td>ทดสอบ</td><td>unit test กฎสต็อก/โควตา/สถานะงาน, e2e test ของ flow หลัก</td><td><span class="pill warn">ควรมี</span></td></tr>
+<tr><td>กฎหมาย</td><td>นโยบายความเป็นส่วนตัว (PDPA), ข้อตกลงการใช้งาน, ใบกำกับภาษีหรือใบเสร็จ</td><td><span class="pill bad">ต้องมี</span></td></tr>
+<tr><td>ภาษา</td><td>หน้าจอรองรับไทย/อังกฤษ (ต้นแบบเป็นภาษาอังกฤษ)</td><td><span class="pill warn">ดู Q4</span></td></tr>
+</tbody></table></div>
+
+<h2 id="plan">10. แผนงาน 4 สัปดาห์ถึงเปิดขาย</h2>
+<p>เวลา 1 เดือนพอสำหรับเวอร์ชันแรกที่ใช้งานจริงได้ ถ้าตัดบางส่วนไปทำหลังเปิดขาย สิ่งที่แนะนำให้เลื่อนคือ การตัดบัตรอัตโนมัติผ่าน Omise (เฟสแรกให้โอนเงินแล้วแนบสลิป เจ้าของแพลตฟอร์มกดยืนยันเอง), หน้า Diagnostic terminal, การนำเข้าข้อมูลจาก Taas Tester, หน้า Platform health แบบละเอียด และรายงานเชิงลึก</p>
+<div class="weeks">
+<div class="week"><div class="d">สัปดาห์ 1 · 23–29 พ.ย.</div><h4>ฐานระบบ</h4><ul><li>ตั้ง monorepo, Docker, CI</li><li>Prisma schema ครบทุกตาราง + RLS</li><li>Auth, เชิญผู้ใช้, สิทธิ์ตามบทบาท</li><li>บริษัท, ลูกค้า, ไซต์, ทีม</li></ul></div>
+<div class="week"><div class="d">สัปดาห์ 2 · 30 พ.ย.–6 ธ.ค.</div><h4>งานซ่อม</h4><ul><li>รับเครื่อง, ออกเลขใบงาน</li><li>บอร์ดช่าง + เปลี่ยนสถานะ</li><li>มอบหมายงาน, บันทึกซ่อม, timeline</li><li>หน้าจอแอดมินและช่าง</li></ul></div>
+<div class="week"><div class="d">สัปดาห์ 3 · 7–13 ธ.ค.</div><h4>สต็อกและ QR</h4><ul><li>แคตตาล็อก, รับเข้า/เบิก/ปรับยอด</li><li>ตัดสต็อกจากงาน, แจ้งเตือนของใกล้หมด</li><li>สร้าง QR, ฉลาก PDF, สแกนด้วยกล้อง</li><li>ประวัติเครื่อง</li></ul></div>
+<div class="week"><div class="d">สัปดาห์ 4 · 14–20 ธ.ค.</div><h4>แพ็กเกจและเตรียมเปิด</h4><ul><li>แพ็กเกจ, โควตา, ใบแจ้งหนี้, ระงับบริษัท</li><li>หน้าเจ้าของแพลตฟอร์ม, audit log</li><li>ทดสอบ, security check, ทดลองกู้ backup</li><li>ขึ้น staging ให้ลูกค้ารายแรกลองใช้</li></ul></div>
+</div>
+<div class="note warn"><b>ความเสี่ยงด้านเวลา:</b> แผนนี้ตึง ถ้าทีมมี dev น้อยกว่า 2 คนเต็มเวลา หรือข้อ Q1–Q3 ยังไม่ได้ตัดสินใจภายในสัปดาห์แรก ควรเลื่อนวันเปิดขาย หรือเปิดแบบ beta ให้ลูกค้าจำนวนจำกัดก่อน</div>
+
+<h2 id="questions">11. เรื่องที่ต้องตัดสินใจ</h2>
+<p>เจอข้อขัดกันหรือข้อที่ยังไม่ชัดในต้นแบบ ต้องตัดสินใจก่อนเริ่มสัปดาห์ 2</p>
+<ol class="qs">
+<li><b>ไซต์เป็นของใคร:</b> ต้นแบบบอกว่า "Each site belongs to one customer" แต่ไซต์ก็มีทีมช่างและสต็อกของศูนย์ซ่อมด้วย และแพ็กเกจ Pro เขียนว่า "Multiple repair-center sites" ไซต์เป็นสาขาของศูนย์ซ่อม หรือเป็นฟาร์มของลูกค้าที่ช่างไปซ่อมหน้างาน? เอกสารนี้ออกแบบให้ <code>customer_id</code> ของไซต์เว้นว่างได้ เพื่อรองรับทั้ง 2 แบบ</li>
+<li><b>ราคาแพ็กเกจ:</b> หน้า Landing แสดง Pro ฿299/เดือน หน้า Pricing ยังเป็น [Price] ส่วนหน้า Revenue ตั้ง Basic ไว้ ฿1,500 ซึ่งแพงกว่า Pro ราคาจริงคือเท่าไร และราคารวม VAT หรือยัง?</li>
+<li><b>โควตาเต็ม:</b> เมื่อ Basic เปิดใบงานครบ 200 ใบ จะปิดไม่ให้เปิดเพิ่ม หรือให้เปิดต่อได้แล้วคิดเงินส่วนเกิน?</li>
+<li><b>ภาษาหน้าจอ:</b> ลูกค้าหลักอยู่ไทย เวียดนาม และมาเลเซีย ตอนเปิดขายต้องมีภาษาไทยด้วยไหม หรือใช้ภาษาอังกฤษอย่างเดียวไปก่อน?</li>
+<li><b>Hosting:</b> ทีมมี cloud ที่ใช้อยู่แล้วไหม (AWS, GCP, DigitalOcean)? ถ้ามีลูกค้าไทยเป็นหลัก แนะนำ region สิงคโปร์</li>
+<li><b>ใบกำกับภาษี:</b> บริษัทผู้ให้บริการจด VAT แล้วหรือยัง? ข้อนี้มีผลกับรูปแบบใบแจ้งหนี้และใบเสร็จ</li>
+</ol>
+</main>
+</div>

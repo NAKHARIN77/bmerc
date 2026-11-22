@@ -1,0 +1,16 @@
+{
+  "name": "bmerc",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @bmerc/api",
+    "db:seed": "npm run db:seed -w @bmerc/api",
+    "dev:api": "npm run start:dev -w @bmerc/api",
+    "dev:web": "npm run dev -w @bmerc/web",
+    "build": "npm run build -w @bmerc/api && npm run build -w @bmerc/web",
+    "test": "npm test -w @bmerc/api"
+  },
+  "engines": { "node": ">=22" }
+}

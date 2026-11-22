@@ -1,0 +1,451 @@
+// BMERC database schema. Source of truth: docs/system-design.html section 5.
+// Every tenant table carries company_id; Row-Level Security policies are added in a SQL migration.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────── Platform tables ─────────────
+
+enum CompanyStatus {
+  active
+  suspended
+  closed
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  suspended
+}
+
+enum InvoiceStatus {
+  open
+  paid
+  void
+}
+
+enum Role {
+  company_admin
+  head_technician
+  technician
+  stock_keeper
+}
+
+model Company {
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String
+  legalName      String?       @map("legal_name")
+  taxId          String?       @map("tax_id")
+  billingEmail   String?       @map("billing_email")
+  billingAddress String?       @map("billing_address")
+  timezone       String        @default("Asia/Bangkok")
+  status         CompanyStatus @default(active)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  subscription Subscription?
+  invoices     Invoice[]
+  users        User[]
+  customers    Customer[]
+  sites        Site[]
+  teams        Team[]
+  devices      Device[]
+  jobs         Job[]
+  parts        Part[]
+  auditLogs    AuditLog[]
+  counters     Counter[]
+
+  @@map("companies")
+}
+
+model Plan {
+  id               String  @id @default(uuid()) @db.Uuid
+  code             String  @unique // trial | basic | pro
+  name             String
+  priceCents       Int     @map("price_cents")
+  currency         String  @default("USD")
+  maxJobsPerMonth  Int?    @map("max_jobs_per_month") // null = unlimited
+  maxSites         Int?    @map("max_sites")
+  maxUsers         Int?    @map("max_users")
+  features         Json    @default("[]")
+  isActive         Boolean @default(true) @map("is_active")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @unique @map("company_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus @default(trialing)
+  currentPeriodStart DateTime           @map("current_period_start")
+  currentPeriodEnd   DateTime           @map("current_period_end")
+  overrideLimits     Json?              @map("override_limits") // "Edit limits" screen
+
+  company Company @relation(fields: [companyId], references: [id])
+  plan    Plan    @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id          String        @id @default(uuid()) @db.Uuid
+  companyId   String        @map("company_id") @db.Uuid
+  number      String        @unique // INV-2026-011
+  periodStart DateTime      @map("period_start")
+  periodEnd   DateTime      @map("period_end")
+  amountCents Int           @map("amount_cents")
+  taxCents    Int           @default(0) @map("tax_cents")
+  currency    String        @default("USD")
+  status      InvoiceStatus @default(open) // never delete; void instead
+  dueAt       DateTime      @map("due_at")
+  paidAt      DateTime?     @map("paid_at")
+  paymentRef  String?       @map("payment_ref") // PayPal / card / BTC reference, or slip URL
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@map("invoices")
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String?   @map("company_id") @db.Uuid // null for platform admin
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  fullName        String    @map("full_name")
+  role            Role?
+  teamId          String?   @map("team_id") @db.Uuid
+  isActive        Boolean   @default(true) @map("is_active")
+  isPlatformAdmin Boolean   @default(false) @map("is_platform_admin")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  company       Company?       @relation(fields: [companyId], references: [id])
+  team          Team?          @relation("TeamMembers", fields: [teamId], references: [id])
+  headOfTeams   Team[]         @relation("TeamHead")
+  refreshTokens RefreshToken[]
+  assignedJobs  Job[]          @relation("JobAssignee")
+
+  @@index([companyId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// Append-only. A trigger in the RLS migration blocks UPDATE and DELETE.
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  companyId   String?  @map("company_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  before      Json?
+  after       Json?
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company Company? @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@map("audit_logs")
+}
+
+// ───────────── Tenant tables (company_id on every row) ─────────────
+
+enum SiteStatus {
+  setup
+  active
+  inactive
+}
+
+enum JobStatus {
+  todo
+  in_repair
+  waiting_parts
+  unrepairable
+  qc_passed
+  dispatched
+}
+
+enum JobPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ComponentResult {
+  repaired
+  replaced
+  unchanged
+}
+
+enum StockMovementType {
+  in
+  out
+  adjust
+}
+
+model Customer {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  name        String
+  contactName String?  @map("contact_name")
+  email       String?
+  phone       String?
+  country     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company Company  @relation(fields: [companyId], references: [id])
+  sites   Site[]
+  devices Device[]
+  jobs    Job[]
+
+  @@index([companyId])
+  @@map("customers")
+}
+
+model Site {
+  id         String     @id @default(uuid()) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  customerId String?    @map("customer_id") @db.Uuid // nullable: see open question Q1
+  name       String
+  country    String?
+  province   String?
+  address    String?
+  status     SiteStatus @default(setup)
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  company        Company         @relation(fields: [companyId], references: [id])
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+  teams          Team[]
+  jobs           Job[]
+  stock          SiteStock[]
+  stockMovements StockMovement[]
+
+  @@index([companyId])
+  @@map("sites")
+}
+
+model Team {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  siteId     String   @map("site_id") @db.Uuid
+  name       String
+  headUserId String?  @map("head_user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  site    Site    @relation(fields: [siteId], references: [id])
+  head    User?   @relation("TeamHead", fields: [headUserId], references: [id])
+  members User[]  @relation("TeamMembers")
+
+  @@index([companyId])
+  @@map("teams")
+}
+
+model Device {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  model      String
+  serialNo   String   @map("serial_no")
+  hashrateTh Decimal? @map("hashrate_th") @db.Decimal(10, 2)
+  qrCode     String?  @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  jobs     Job[]
+
+  @@unique([companyId, serialNo])
+  @@map("devices")
+}
+
+model Job {
+  id                 String      @id @default(uuid()) @db.Uuid
+  companyId          String      @map("company_id") @db.Uuid
+  number             String // TK-2026-0113, sequential per company via counters
+  deviceId           String      @map("device_id") @db.Uuid
+  customerId         String      @map("customer_id") @db.Uuid
+  siteId             String      @map("site_id") @db.Uuid
+  assigneeId         String?     @map("assignee_id") @db.Uuid
+  status             JobStatus   @default(todo)
+  priority           JobPriority @default(normal)
+  reportedFault      String?     @map("reported_fault")
+  workNote           String?     @map("work_note")
+  unrepairableReason String?     @map("unrepairable_reason")
+  receivedAt         DateTime    @default(now()) @map("received_at")
+  qcPassedAt         DateTime?   @map("qc_passed_at")
+  dispatchedAt       DateTime?   @map("dispatched_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  company      Company        @relation(fields: [companyId], references: [id])
+  device       Device         @relation(fields: [deviceId], references: [id])
+  customer     Customer       @relation(fields: [customerId], references: [id])
+  site         Site           @relation(fields: [siteId], references: [id])
+  assignee     User?          @relation("JobAssignee", fields: [assigneeId], references: [id])
+  events       JobEvent[]
+  components   JobComponent[]
+  parts        JobPart[]
+  qrPrintLogs  QrPrintLog[]
+  movements    StockMovement[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@map("jobs")
+}
+
+model JobEvent {
+  id         BigInt     @id @default(autoincrement())
+  companyId  String     @map("company_id") @db.Uuid
+  jobId      String     @map("job_id") @db.Uuid
+  fromStatus JobStatus? @map("from_status")
+  toStatus   JobStatus  @map("to_status")
+  actorId    String?    @map("actor_id") @db.Uuid
+  note       String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@map("job_events")
+}
+
+model JobComponent {
+  id        String          @id @default(uuid()) @db.Uuid
+  companyId String          @map("company_id") @db.Uuid
+  jobId     String          @map("job_id") @db.Uuid
+  component String
+  workDone  String?         @map("work_done")
+  result    ComponentResult
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@map("job_components")
+}
+
+model Part {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  sku       String
+  name      String
+  category  String?
+  unit      String   @default("pcs")
+  minQty    Int      @default(0) @map("min_qty")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company   Company         @relation(fields: [companyId], references: [id])
+  stock     SiteStock[]
+  movements StockMovement[]
+  jobParts  JobPart[]
+
+  @@unique([companyId, sku])
+  @@map("parts")
+}
+
+// Current balance. CHECK (qty >= 0) is added in the RLS migration.
+model SiteStock {
+  companyId String @map("company_id") @db.Uuid
+  siteId    String @map("site_id") @db.Uuid
+  partId    String @map("part_id") @db.Uuid
+  qty       Int    @default(0)
+
+  site Site @relation(fields: [siteId], references: [id])
+  part Part @relation(fields: [partId], references: [id])
+
+  @@id([siteId, partId])
+  @@map("site_stock")
+}
+
+// Stock ledger. Append-only.
+model StockMovement {
+  id        BigInt            @id @default(autoincrement())
+  companyId String            @map("company_id") @db.Uuid
+  siteId    String            @map("site_id") @db.Uuid
+  partId    String            @map("part_id") @db.Uuid
+  type      StockMovementType
+  qty       Int // signed: + in, - out
+  jobId     String?           @map("job_id") @db.Uuid
+  reason    String?
+  actorId   String?           @map("actor_id") @db.Uuid
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  site     Site      @relation(fields: [siteId], references: [id])
+  part     Part      @relation(fields: [partId], references: [id])
+  job      Job?      @relation(fields: [jobId], references: [id])
+  jobParts JobPart[]
+
+  @@index([companyId, partId])
+  @@map("stock_movements")
+}
+
+model JobPart {
+  id         String @id @default(uuid()) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  jobId      String @map("job_id") @db.Uuid
+  partId     String @map("part_id") @db.Uuid
+  qty        Int
+  movementId BigInt @map("movement_id")
+
+  job      Job           @relation(fields: [jobId], references: [id])
+  part     Part          @relation(fields: [partId], references: [id])
+  movement StockMovement @relation(fields: [movementId], references: [id])
+
+  @@index([jobId])
+  @@map("job_parts")
+}
+
+model QrPrintLog {
+  id        BigInt   @id @default(autoincrement())
+  companyId String   @map("company_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  printedBy String   @map("printed_by") @db.Uuid
+  copies    Int      @default(1)
+  printedAt DateTime @default(now()) @map("printed_at")
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@map("qr_print_logs")
+}
+
+// Job number sequence per company, locked with SELECT ... FOR UPDATE.
+model Counter {
+  companyId String @map("company_id") @db.Uuid
+  key       String // e.g. job:2026
+  value     Int    @default(0)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@id([companyId, key])
+  @@map("counters")
+}
