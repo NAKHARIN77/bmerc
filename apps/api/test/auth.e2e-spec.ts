@@ -43,6 +43,7 @@ describe('Auth (e2e)', () => {
     const cookies = r.headers['set-cookie'] as unknown as string[];
     expect(cookies.join(';')).toMatch(/bmerc_at=.*HttpOnly/);
     expect(cookies.join(';')).toMatch(/bmerc_rt=.*HttpOnly/);
+    expect(cookies.join(';')).toMatch(/bmerc_session=1; Path=\//);
 
     const me = await http().get('/api/v1/me').set('Cookie', cookies).expect(200);
     expect(me.body.role).toBe('company_admin');

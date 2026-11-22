@@ -10,6 +10,8 @@ import { ACCESS_TTL_SECONDS } from './tokens.js';
 import type { AuthUser } from './auth-user.js';
 
 const REFRESH_COOKIE = 'bmerc_rt';
+/** Holds no secret: tells the web app's proxy that a session exists (the refresh cookie is only sent to /api/v1/auth). */
+const SESSION_HINT_COOKIE = 'bmerc_session';
 const password = z.string().min(8, 'At least 8 characters').max(200);
 const RegisterBody = z.object({
   companyName: z.string().trim().min(2).max(200),
@@ -31,6 +33,9 @@ function setSession(res: Response, s: Session) {
   });
   res.cookie(REFRESH_COOKIE, s.refreshToken, {
     httpOnly: true, sameSite: 'lax', secure: secure(), path: '/api/v1/auth', expires: s.refreshExpiresAt,
+  });
+  res.cookie(SESSION_HINT_COOKIE, '1', {
+    httpOnly: true, sameSite: 'lax', secure: secure(), path: '/', expires: s.refreshExpiresAt,
   });
   return { accessToken: s.accessToken, expiresIn: ACCESS_TTL_SECONDS };
 }
@@ -99,6 +104,7 @@ export class AuthController {
     await this.auth.logout(req.cookies?.[REFRESH_COOKIE]);
     res.clearCookie(ACCESS_COOKIE, { path: '/' });
     res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(SESSION_HINT_COOKIE, { path: '/' });
   }
 }
 

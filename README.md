@@ -20,9 +20,21 @@ npm install
 npm run db:up          # PostgreSQL 16 in Docker
 npm run db:migrate     # apply migrations (runs as table owner)
 npm run dev:api        # http://localhost:4000/api/v1/health
+npm run db:seed        # demo data; every demo account uses Demo1234!
 npm run dev:web        # http://localhost:3000
 npm run test:e2e -w @bmerc/api
 ```
+
+Demo logins: `admin@siamhash.demo` (company admin), `manager@siamhash.demo` (site manager, Chonburi),
+`head@siamhash.demo`, `tech@siamhash.demo`, `stock@siamhash.demo`, `owner@bmerc.demo` (platform owner).
+Invite and password-reset emails are written to the API log until a mail provider is set up.
+
+## Web ↔ API
+
+The browser only talks to the web origin. `apps/web/next.config.ts` forwards `/api/v1/*` to the API
+(`API_ORIGIN`, default `http://localhost:4000`; set it at build time for other environments), so the
+API's httpOnly cookies are first-party. The API trusts `X-Forwarded-For` from `TRUST_PROXY`
+(default `loopback`) so rate limits and audit logs see the real client IP. The UI is English only.
 
 ## Tenant isolation
 
