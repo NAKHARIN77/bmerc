@@ -35,6 +35,7 @@ enum InvoiceStatus {
 
 enum Role {
   company_admin
+  site_manager // sees only the sites linked in site_managers (any number of sites)
   head_technician
   technician
   stock_keeper
@@ -68,16 +69,16 @@ model Company {
 }
 
 model Plan {
-  id               String  @id @default(uuid()) @db.Uuid
-  code             String  @unique // trial | basic | pro
-  name             String
-  priceCents       Int     @map("price_cents")
-  currency         String  @default("USD")
-  maxJobsPerMonth  Int?    @map("max_jobs_per_month") // null = unlimited
-  maxSites         Int?    @map("max_sites")
-  maxUsers         Int?    @map("max_users")
-  features         Json    @default("[]")
-  isActive         Boolean @default(true) @map("is_active")
+  id              String  @id @default(uuid()) @db.Uuid
+  code            String  @unique // trial | basic | pro
+  name            String
+  priceCents      Int     @map("price_cents")
+  currency        String  @default("USD")
+  maxJobsPerMonth Int?    @map("max_jobs_per_month") // null = unlimited
+  maxSites        Int?    @map("max_sites")
+  maxUsers        Int?    @map("max_users")
+  features        Json    @default("[]")
+  isActive        Boolean @default(true) @map("is_active")
 
   subscriptions Subscription[]
 
@@ -100,19 +101,23 @@ model Subscription {
 }
 
 model Invoice {
-  id          String        @id @default(uuid()) @db.Uuid
-  companyId   String        @map("company_id") @db.Uuid
-  number      String        @unique // INV-2026-011
-  periodStart DateTime      @map("period_start")
-  periodEnd   DateTime      @map("period_end")
-  amountCents Int           @map("amount_cents")
-  taxCents    Int           @default(0) @map("tax_cents")
-  currency    String        @default("USD")
-  status      InvoiceStatus @default(open) // never delete; void instead
-  dueAt       DateTime      @map("due_at")
-  paidAt      DateTime?     @map("paid_at")
-  paymentRef  String?       @map("payment_ref") // PayPal / card / BTC reference, or slip URL
-  createdAt   DateTime      @default(now()) @map("created_at")
+  id             String        @id @default(uuid()) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  number         String        @unique // INV-2026-011
+  periodStart    DateTime      @map("period_start")
+  periodEnd      DateTime      @map("period_end")
+  amountCents    Int           @map("amount_cents")
+  taxCents       Int           @default(0) @map("tax_cents")
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(open) // never delete; void instead
+  dueAt          DateTime      @map("due_at")
+  paidAt         DateTime?     @map("paid_at")
+  paymentRef     String?       @map("payment_ref") // PayPal / card / BTC reference
+  // Phase 1: company uploads a transfer slip, platform owner confirms (mark-paid).
+  slipUrl        String?       @map("slip_url")
+  slipUploadedAt DateTime?     @map("slip_uploaded_at")
+  confirmedById  String?       @map("confirmed_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -138,6 +143,7 @@ model User {
   headOfTeams   Team[]         @relation("TeamHead")
   refreshTokens RefreshToken[]
   assignedJobs  Job[]          @relation("JobAssignee")
+  managedSites  SiteManager[]
 
   @@index([companyId])
   @@map("users")
@@ -248,9 +254,26 @@ model Site {
   jobs           Job[]
   stock          SiteStock[]
   stockMovements StockMovement[]
+  managers       SiteManager[]
 
   @@index([companyId])
   @@map("sites")
+}
+
+// Which sites a site_manager can see. One manager may cover many sites.
+model SiteManager {
+  companyId String   @map("company_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  siteId    String   @map("site_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@index([companyId])
+  @@index([siteId])
+  @@map("site_managers")
 }
 
 model Team {
@@ -307,20 +330,117 @@ model Job {
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
 
-  company      Company        @relation(fields: [companyId], references: [id])
-  device       Device         @relation(fields: [deviceId], references: [id])
-  customer     Customer       @relation(fields: [customerId], references: [id])
-  site         Site           @relation(fields: [siteId], references: [id])
-  assignee     User?          @relation("JobAssignee", fields: [assigneeId], references: [id])
-  events       JobEvent[]
-  components   JobComponent[]
-  parts        JobPart[]
-  qrPrintLogs  QrPrintLog[]
-  movements    StockMovement[]
+  company     Company         @relation(fields: [companyId], references: [id])
+  device      Device          @relation(fields: [deviceId], references: [id])
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  site        Site            @relation(fields: [siteId], references: [id])
+  assignee    User?           @relation("JobAssignee", fields: [assigneeId], references: [id])
+  events      JobEvent[]
+  components  JobComponent[]
+  parts       JobPart[]
+  qrPrintLogs QrPrintLog[]
+  movements   StockMovement[]
+  invoice     JobInvoice?
 
   @@unique([companyId, number])
   @@index([companyId, status])
   @@map("jobs")
+}
+
+// ───────────── Repair billing (customer pays the repair center) ─────────────
+// Separate from `invoices`, which bill the company for its BMERC plan.
+// Phase 1: bank transfer + slip upload, confirmed by staff. Gateway webhooks come later.
+
+enum JobInvoiceStatus {
+  unpaid
+  partial
+  paid
+  void
+}
+
+enum JobInvoiceLineKind {
+  labor
+  part
+  other
+}
+
+enum PaymentMethod {
+  bank_transfer
+  cash
+  other
+}
+
+enum PaymentStatus {
+  pending // slip uploaded, waiting for staff review
+  confirmed
+  rejected
+}
+
+model JobInvoice {
+  id            String           @id @default(uuid()) @db.Uuid
+  companyId     String           @map("company_id") @db.Uuid
+  jobId         String           @unique @map("job_id") @db.Uuid
+  number        String // RI-2026-0042, sequential per company via counters (key rinv:2026)
+  currency      String           @default("THB")
+  subtotalCents Int              @map("subtotal_cents")
+  taxCents      Int              @default(0) @map("tax_cents")
+  totalCents    Int              @map("total_cents")
+  paidCents     Int              @default(0) @map("paid_cents") // sum of confirmed payments
+  status        JobInvoiceStatus @default(unpaid) // never delete; void instead
+  issuedAt      DateTime         @default(now()) @map("issued_at")
+  dueAt         DateTime?        @map("due_at")
+  note          String?
+  createdById   String?          @map("created_by_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  job      Job              @relation(fields: [jobId], references: [id])
+  lines    JobInvoiceLine[]
+  payments JobPayment[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@map("job_invoices")
+}
+
+model JobInvoiceLine {
+  id             String             @id @default(uuid()) @db.Uuid
+  companyId      String             @map("company_id") @db.Uuid
+  invoiceId      String             @map("invoice_id") @db.Uuid
+  kind           JobInvoiceLineKind
+  description    String
+  qty            Decimal            @default(1) @db.Decimal(10, 2)
+  unitPriceCents Int                @map("unit_price_cents")
+  amountCents    Int                @map("amount_cents")
+  jobPartId      String?            @map("job_part_id") @db.Uuid // set when the line bills a part used in the job
+  sortOrder      Int                @default(0) @map("sort_order")
+
+  invoice JobInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("job_invoice_lines")
+}
+
+model JobPayment {
+  id            String        @id @default(uuid()) @db.Uuid
+  companyId     String        @map("company_id") @db.Uuid
+  invoiceId     String        @map("invoice_id") @db.Uuid
+  method        PaymentMethod @default(bank_transfer)
+  amountCents   Int           @map("amount_cents")
+  paidAt        DateTime      @map("paid_at") // date on the slip / when cash was received
+  reference     String? // bank transaction ref
+  slipUrl       String?       @map("slip_url")
+  status        PaymentStatus @default(pending)
+  submittedById String?       @map("submitted_by_id") @db.Uuid
+  reviewedById  String?       @map("reviewed_by_id") @db.Uuid
+  reviewedAt    DateTime?     @map("reviewed_at")
+  rejectReason  String?       @map("reject_reason")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  invoice JobInvoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@map("job_payments")
 }
 
 model JobEvent {

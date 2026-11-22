@@ -157,22 +157,24 @@ a{color:var(--accent)}
 <h2 id="roles">4. บทบาทและสิทธิ์</h2>
 <p>ผู้ใช้ 1 คนอยู่ได้ 1 บริษัทและมี 1 บทบาท ส่วนเจ้าของแพลตฟอร์มเป็นบัญชีแยก (<code>is_platform_admin</code>) ที่ไม่ผูกกับบริษัทใด</p>
 <div class="tbl"><table>
-<thead><tr><th>การกระทำ</th><th class="c">เจ้าของแพลตฟอร์ม</th><th class="c">แอดมินบริษัท</th><th class="c">หัวหน้าช่าง</th><th class="c">ช่าง</th><th class="c">คนคุมสต็อก</th></tr></thead>
+<thead><tr><th>การกระทำ</th><th class="c">เจ้าของแพลตฟอร์ม</th><th class="c">แอดมินบริษัท</th><th class="c">ผู้จัดการไซต์</th><th class="c">หัวหน้าช่าง</th><th class="c">ช่าง</th><th class="c">คนคุมสต็อก</th></tr></thead>
 <tbody>
-<tr><td>ตั้งค่าบริษัท, แพ็กเกจ, ข้อมูลออกบิล</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>เพิ่มหรือแก้ลูกค้า ไซต์ ทีม</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">ดูได้</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>เชิญหรือปิดบัญชีผู้ใช้</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>รับเครื่องเข้า (เปิดใบงาน)</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>มอบหมายงานให้ช่าง</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>เปลี่ยนสถานะงาน, เขียนบันทึกซ่อม</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c n">—</td></tr>
-<tr><td>เบิกอะไหล่เข้างาน</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c y">✓</td></tr>
-<tr><td>รับอะไหล่เข้า, ปรับยอดสต็อก</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
-<tr><td>จัดการแคตตาล็อกอะไหล่</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
-<tr><td>พิมพ์ QR, ดูประวัติเครื่อง</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">ดูได้</td></tr>
-<tr><td>ดูรายงาน</td><td class="c n">ตัวเลขรวม</td><td class="c y">✓</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c p">สต็อก</td></tr>
-<tr><td>ดู audit log</td><td class="c y">ทุกบริษัท</td><td class="c p">บริษัทตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>ตั้งโควตา, ระงับหรือเปิดบริษัท, ดูรายได้</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>ตั้งค่าบริษัท, แพ็กเกจ, ข้อมูลออกบิล</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เพิ่มหรือแก้ลูกค้า ไซต์ ทีม</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ทีมในไซต์ตัวเอง</td><td class="c n">ดูได้</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เชิญหรือปิดบัญชีผู้ใช้</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>รับเครื่องเข้า (เปิดใบงาน)</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>มอบหมายงานให้ช่าง</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>เปลี่ยนสถานะงาน, เขียนบันทึกซ่อม</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c n">—</td></tr>
+<tr><td>เบิกอะไหล่เข้างาน</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c y">✓</td></tr>
+<tr><td>รับอะไหล่เข้า, ปรับยอดสต็อก</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
+<tr><td>จัดการแคตตาล็อกอะไหล่</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
+<tr><td>พิมพ์ QR, ดูประวัติเครื่อง</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">ดูได้</td></tr>
+<tr><td>ออกใบแจ้งหนี้ค่าซ่อม, ยืนยันสลิปลูกค้า</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>ดูรายงาน</td><td class="c n">ตัวเลขรวม</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c p">สต็อก</td></tr>
+<tr><td>ดู audit log</td><td class="c y">ทุกบริษัท</td><td class="c p">บริษัทตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
+<tr><td>ตั้งโควตา, ระงับหรือเปิดบริษัท, ดูรายได้</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
 </tbody></table></div>
+<p>ผู้จัดการไซต์ (<code>site_manager</code>) เห็นเฉพาะไซต์ที่ผูกไว้ในตาราง <code>site_managers</code> คนเดียวดูแลได้หลายไซต์โดยไม่จำกัดจำนวน ส่วนแอดมินบริษัทยังเห็นทั้งบริษัท สิทธิ์ในคอลัมน์นี้เป็นข้อเสนอ ต้องให้ผู้จัดการไซต์ตัวจริงยืนยัน</p>
 <p>แพ็กเกจ Basic มีผู้ใช้ได้ 1 บัญชีที่เป็นแอดมินบริษัท บทบาทหัวหน้าช่าง ช่าง และคนคุมสต็อก ใช้ได้เฉพาะแพ็กเกจ Pro ตามหน้า Pricing ในต้นแบบ</p>
 
 <h2 id="data">5. โครงสร้างข้อมูล</h2>
@@ -199,6 +201,11 @@ erDiagram
   SITE ||--o{ SITE_STOCK : holds
   PART ||--o{ STOCK_MOVEMENT : ledger
   COMPANY ||--o{ AUDIT_LOG : records
+  USER ||--o{ SITE_MANAGER : manages
+  SITE ||--o{ SITE_MANAGER : "managed by"
+  JOB ||--o| JOB_INVOICE : billed
+  JOB_INVOICE ||--o{ JOB_INVOICE_LINE : lines
+  JOB_INVOICE ||--o{ JOB_PAYMENT : "paid by"
 </pre></div>
 
 <h3>ตารางระดับแพลตฟอร์ม</h3>
@@ -208,7 +215,7 @@ erDiagram
 <tr><td><code>companies</code></td><td>id, name, legal_name, tax_id, billing_email, billing_address, timezone, status <span class="pill info">active / suspended / closed</span></td><td>tenant หลัก</td></tr>
 <tr><td><code>plans</code></td><td>code <span class="pill info">trial / basic / pro</span>, price_thb, max_jobs_per_month, max_sites, max_users, features (jsonb)</td><td>ค่า null = ไม่จำกัด</td></tr>
 <tr><td><code>subscriptions</code></td><td>company_id, plan_id, status <span class="pill info">trialing / active / past_due / suspended</span>, current_period_start/end, override_limits (jsonb)</td><td>override ใช้กับหน้า "Edit limits"</td></tr>
-<tr><td><code>invoices</code></td><td>company_id, number <code>INV-2026-011</code>, period, amount_thb, vat_thb, status <span class="pill info">open / paid / void</span>, due_at, paid_at, slip_url</td><td>ห้ามลบ ให้ void แทน</td></tr>
+<tr><td><code>invoices</code></td><td>company_id, number <code>INV-2026-011</code>, period, amount_thb, vat_thb, status <span class="pill info">open / paid / void</span>, due_at, paid_at, slip_url, slip_uploaded_at, confirmed_by_id</td><td>ห้ามลบ ให้ void แทน</td></tr>
 <tr><td><code>users</code></td><td>id, company_id (null สำหรับ platform admin), email, password_hash, full_name, role, team_id, is_active, is_platform_admin, last_login_at</td><td>อีเมลห้ามซ้ำทั้งระบบ</td></tr>
 <tr><td><code>refresh_tokens</code></td><td>user_id, token_hash, expires_at, revoked_at, user_agent</td><td>เปลี่ยน token ใหม่ทุกครั้งที่ refresh</td></tr>
 <tr><td><code>audit_logs</code></td><td>company_id, actor_user_id, action, entity_type, entity_id, before (jsonb), after (jsonb), ip, created_at</td><td>เพิ่มได้อย่างเดียว ห้ามแก้หรือลบ</td></tr>
@@ -220,6 +227,7 @@ erDiagram
 <tbody>
 <tr><td><code>customers</code></td><td>name, contact_name, email, phone, country</td><td></td></tr>
 <tr><td><code>sites</code></td><td>name, customer_id (nullable), country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>ดู Q1</td></tr>
+<tr><td><code>site_managers</code></td><td>user_id, site_id</td><td>ไซต์ที่ผู้จัดการไซต์ดูแล PK (user_id, site_id)</td></tr>
 <tr><td><code>teams</code></td><td>site_id, name, head_user_id</td><td></td></tr>
 <tr><td><code>devices</code></td><td>customer_id, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, serial_no)</td></tr>
 <tr><td><code>jobs</code></td><td>number, device_id, customer_id, site_id, assignee_id, status, priority, reported_fault, work_note, unrepairable_reason, received_at, qc_passed_at, dispatched_at</td><td>เลขใบงานเรียงต่อกันในแต่ละบริษัท</td></tr>
@@ -230,6 +238,9 @@ erDiagram
 <tr><td><code>stock_movements</code></td><td>site_id, part_id, type <span class="pill info">in / out / adjust</span>, qty (+/−), job_id, reason, actor_id</td><td>สมุดบัญชีสต็อก เพิ่มได้อย่างเดียว</td></tr>
 <tr><td><code>job_parts</code></td><td>job_id, part_id, qty, movement_id</td><td>อะไหล่ที่ใช้ในงาน ผูกกับ movement</td></tr>
 <tr><td><code>qr_print_logs</code></td><td>job_id, printed_by, copies, printed_at</td><td>ใช้ในส่วน "Print history"</td></tr>
+<tr><td><code>job_invoices</code></td><td>job_id (unique), number <code>RI-2026-0042</code>, currency, subtotal_cents, tax_cents, total_cents, paid_cents, status <span class="pill info">unpaid / partial / paid / void</span>, issued_at, due_at, note</td><td>ใบแจ้งหนี้ค่าซ่อมที่เก็บจากลูกค้า แยกจาก <code>invoices</code> ที่เป็นค่าแพ็กเกจ ห้ามลบ ให้ void แทน</td></tr>
+<tr><td><code>job_invoice_lines</code></td><td>invoice_id, kind <span class="pill info">labor / part / other</span>, description, qty, unit_price_cents, amount_cents, job_part_id</td><td>รายการค่าแรงและค่าอะไหล่</td></tr>
+<tr><td><code>job_payments</code></td><td>invoice_id, method <span class="pill info">bank_transfer / cash / other</span>, amount_cents, paid_at, reference, slip_url, status <span class="pill info">pending / confirmed / rejected</span>, reviewed_by_id, reviewed_at, reject_reason</td><td>ชำระบางส่วนได้ ยอดที่ยืนยันแล้วรวมเป็น paid_cents</td></tr>
 <tr><td><code>counters</code></td><td>company_id, key (เช่น <code>job:2026</code>), value</td><td>ใช้ออกเลขใบงาน ล็อกแถวด้วย <code>FOR UPDATE</code></td></tr>
 </tbody></table></div>
 
@@ -309,6 +320,7 @@ stateDiagram-v2
 <tr><td>Parts</td><td><code>GET/POST /parts</code> · <code>GET/PATCH /parts/:id</code> · <code>GET /parts/:id/movements</code></td><td>Parts catalog, Part detail</td></tr>
 <tr><td>Stock</td><td><code>GET /stock</code> · <code>POST /stock/in</code> · <code>POST /stock/out</code> · <code>POST /stock/adjust</code></td><td>Stock, Stock in/out, Adjust</td></tr>
 <tr><td>Reports</td><td><code>GET /reports/turnaround</code> · <code>/reports/parts-usage</code> · <code>/reports/jobs-by-technician</code> · <code>?format=csv</code></td><td>Reports</td></tr>
+<tr><td>Repair billing</td><td><code>POST /jobs/:id/invoice</code> · <code>GET/PATCH /job-invoices/:id</code> · <code>POST /job-invoices/:id/void</code> · <code>POST /job-invoices/:id/payments</code> (แนบสลิป) · <code>POST /job-payments/:id/confirm</code> · <code>/reject</code></td><td>Job detail, Invoices</td></tr>
 <tr><td>Billing</td><td><code>GET /billing/invoices</code> · <code>POST /billing/invoices/:id/slip</code> · <code>PATCH /billing/details</code></td><td>Subscription, Payment details</td></tr>
 <tr><td>Audit</td><td><code>GET /audit-logs</code></td><td>Audit log</td></tr>
 <tr><td>Platform</td><td><code>GET /platform/companies</code> · <code>GET /platform/overview</code> · <code>PATCH /platform/companies/:id/limits</code> · <code>POST /platform/companies/:id/suspend</code> · <code>/activate</code> · <code>POST /platform/invoices/:id/mark-paid</code> · <code>GET /platform/revenue</code> · <code>GET /platform/health</code></td><td>Companies, Quotas, Revenue, Platform health</td></tr>
@@ -349,6 +361,13 @@ stateDiagram-v2
 <li><b>ภาษาหน้าจอ:</b> ลูกค้าหลักอยู่ไทย เวียดนาม และมาเลเซีย ตอนเปิดขายต้องมีภาษาไทยด้วยไหม หรือใช้ภาษาอังกฤษอย่างเดียวไปก่อน?</li>
 <li><b>Hosting:</b> ทีมมี cloud ที่ใช้อยู่แล้วไหม (AWS, GCP, DigitalOcean)? ถ้ามีลูกค้าไทยเป็นหลัก แนะนำ region สิงคโปร์</li>
 <li><b>ใบกำกับภาษี:</b> บริษัทผู้ให้บริการจด VAT แล้วหรือยัง? ข้อนี้มีผลกับรูปแบบใบแจ้งหนี้และใบเสร็จ</li>
+<li><b>ใบเสนอราคาก่อนซ่อม:</b> ต้องให้ลูกค้าอนุมัติราคาก่อนเริ่มซ่อมหรือไม่? ถ้าต้อง เสนอให้บังคับเฉพาะงานที่ค่าซ่อมเกินเกณฑ์ที่บริษัทตั้งไว้ (ยังไม่มีใน schema)</li>
 </ol>
+<h3>ตัดสินใจแล้ว (22 พ.ย. 2026)</h3>
+<ul>
+<li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>site_managers</code> คนเดียวดูแลได้หลายไซต์</li>
+<li><b>ค่าซ่อม:</b> ใช้ตาราง <code>job_invoices</code>, <code>job_invoice_lines</code> และ <code>job_payments</code> แยกจากใบแจ้งหนี้ค่าแพ็กเกจ</li>
+<li><b>การรับชำระ:</b> เฟสแรกใช้โอนเงินแล้วแนบสลิป มีคนตรวจและกดยืนยัน ทั้งค่าซ่อมและค่าแพ็กเกจ ส่วนการตัดเงินอัตโนมัติผ่าน webhook ทำหลังเปิดขาย</li>
+</ul>
 </main>
 </div>

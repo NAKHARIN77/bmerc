@@ -21,6 +21,14 @@ afterAll(async () => {
   await owner.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await owner.auditLog.deleteMany({ where: { companyId: { in: [a, b] } } });
   await owner.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
+  const both = { companyId: { in: [a, b] } };
+  await owner.jobPayment.deleteMany({ where: both });
+  await owner.jobInvoice.deleteMany({ where: both }); // lines cascade
+  await owner.job.deleteMany({ where: both });
+  await owner.device.deleteMany({ where: both });
+  await owner.siteManager.deleteMany({ where: both });
+  await owner.site.deleteMany({ where: both });
+  await owner.user.deleteMany({ where: both });
   await owner.customer.deleteMany({ where: { companyId: { in: [a, b] } } });
   await owner.company.deleteMany({ where: { id: { in: [a, b] } } });
   await owner.$disconnect();
@@ -54,6 +62,38 @@ describe('Row-Level Security between companies', () => {
     const rows = await admin.customer.findMany({ where: { companyId: { in: [a, b] } } });
     expect(rows).toHaveLength(2);
     await expect(admin.customer.create({ data: { companyId: a, name: 'Admin write' } })).rejects.toThrow();
+  });
+
+  it('repair invoices, payments and site managers are isolated per company', async () => {
+    const tag = Date.now();
+    const customer = await owner.customer.findFirstOrThrow({ where: { companyId: b } });
+    const site = await owner.site.create({ data: { companyId: b, name: 'Site of B' } });
+    const user = await owner.user.create({
+      data: { companyId: b, email: `mgr-${tag}@rls.test`, passwordHash: 'x', fullName: 'Manager B', role: 'site_manager' },
+    });
+    await owner.siteManager.create({ data: { companyId: b, userId: user.id, siteId: site.id } });
+    const device = await owner.device.create({ data: { companyId: b, customerId: customer.id, model: 'S19', serialNo: `SN-${tag}` } });
+    const job = await owner.job.create({
+      data: { companyId: b, number: `TK-${tag}`, deviceId: device.id, customerId: customer.id, siteId: site.id },
+    });
+    const invoice = await owner.jobInvoice.create({
+      data: {
+        companyId: b, jobId: job.id, number: `RI-${tag}`, subtotalCents: 50000, totalCents: 50000,
+        lines: { create: [{ companyId: b, kind: 'labor', description: 'Hashboard repair', unitPriceCents: 50000, amountCents: 50000 }] },
+      },
+    });
+    await owner.jobPayment.create({ data: { companyId: b, invoiceId: invoice.id, amountCents: 50000, paidAt: new Date() } });
+
+    const asA = forTenant(app, a);
+    expect(await asA.jobInvoice.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await asA.jobInvoiceLine.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await asA.jobPayment.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await asA.siteManager.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await forTenant(app, b).jobPayment.findMany({ where: { invoiceId: invoice.id } })).toHaveLength(1);
+
+    await expect(
+      owner.jobPayment.create({ data: { companyId: b, invoiceId: invoice.id, amountCents: 0, paidAt: new Date() } }),
+    ).rejects.toThrow();
   });
 
   it('audit log rows cannot be changed or deleted', async () => {
