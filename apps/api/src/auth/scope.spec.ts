@@ -7,14 +7,14 @@ const user = (over: Partial<AuthUser>): AuthUser => ({
 });
 
 describe('resolveSiteIds', () => {
-  it('gives admins and stock keepers the whole company', () => {
+  it('gives company admins the whole company', () => {
     expect(resolveSiteIds('company_admin', null, [])).toBeNull();
-    expect(resolveSiteIds('stock_keeper', 's1', ['s2'])).toBeNull();
   });
 
-  it('gives site managers exactly their linked sites', () => {
+  it('gives site managers and stock keepers exactly their linked sites', () => {
     expect(resolveSiteIds('site_manager', null, ['s1', 's2'])).toEqual(['s1', 's2']);
     expect(resolveSiteIds('site_manager', null, [])).toEqual([]);
+    expect(resolveSiteIds('stock_keeper', 's9', ['s2'])).toEqual(['s2']);
   });
 
   it("gives technicians their team's site, or nothing without a team", () => {
@@ -32,8 +32,9 @@ describe('jobScope', () => {
     expect(jobScope(user({ role: 'company_admin', siteIds: null }))).toEqual({});
   });
 
-  it('limits site managers to their sites', () => {
+  it('limits site managers and stock keepers to their sites', () => {
     expect(jobScope(user({ role: 'site_manager', teamId: null, siteIds: ['s1', 's2'] }))).toEqual({ siteId: { in: ['s1', 's2'] } });
+    expect(jobScope(user({ role: 'stock_keeper', teamId: null, siteIds: ['s2'] }))).toEqual({ siteId: { in: ['s2'] } });
   });
 
   it('limits technicians to unassigned or teammate jobs at their site', () => {

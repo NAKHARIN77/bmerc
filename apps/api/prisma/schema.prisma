@@ -35,10 +35,10 @@ enum InvoiceStatus {
 
 enum Role {
   company_admin
-  site_manager // sees only the sites linked in site_managers (any number of sites)
+  site_manager // sees only the sites linked in user_sites (any number of sites)
   head_technician
   technician
-  stock_keeper
+  stock_keeper // stock and jobs only at the sites linked in user_sites
 }
 
 model Company {
@@ -144,7 +144,7 @@ model User {
   refreshTokens RefreshToken[]
   tokens        UserToken[]
   assignedJobs  Job[]          @relation("JobAssignee")
-  managedSites  SiteManager[]
+  siteLinks     UserSite[]
 
   @@index([companyId])
   @@map("users")
@@ -275,14 +275,14 @@ model Site {
   jobs           Job[]
   stock          SiteStock[]
   stockMovements StockMovement[]
-  managers       SiteManager[]
+  userLinks      UserSite[]
 
   @@index([companyId])
   @@map("sites")
 }
 
-// Which sites a site_manager can see. One manager may cover many sites.
-model SiteManager {
+// Sites a site_manager or stock_keeper works at. One person may cover many sites.
+model UserSite {
   companyId String   @map("company_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   siteId    String   @map("site_id") @db.Uuid
@@ -294,7 +294,7 @@ model SiteManager {
   @@id([userId, siteId])
   @@index([companyId])
   @@index([siteId])
-  @@map("site_managers")
+  @@map("user_sites")
 }
 
 model Team {

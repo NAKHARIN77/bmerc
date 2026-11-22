@@ -64,15 +64,15 @@ export class AuthGuard implements CanActivate {
     return true;
   }
 
-  // teams and site_managers are RLS tables, so read them inside the user's company context.
+  // teams and user_sites are RLS tables, so read them inside the user's company context.
   private async siteIdsFor(u: { id: string; companyId: string | null; role: Role | null; teamId: string | null }) {
     if (!u.companyId) return [];
     const needsTeam = (u.role === 'head_technician' || u.role === 'technician') && !!u.teamId;
-    const needsSites = u.role === 'site_manager';
+    const needsSites = u.role === 'site_manager' || u.role === 'stock_keeper';
     if (!needsTeam && !needsSites) return resolveSiteIds(u.role, null, []);
     const [team, managed] = await withTenantTx(this.prisma, u.companyId, async (tx) => [
       needsTeam ? await tx.team.findUnique({ where: { id: u.teamId! }, select: { siteId: true } }) : null,
-      needsSites ? await tx.siteManager.findMany({ where: { userId: u.id }, select: { siteId: true } }) : [],
+      needsSites ? await tx.userSite.findMany({ where: { userId: u.id }, select: { siteId: true } }) : [],
     ] as const);
     return resolveSiteIds(u.role, team?.siteId, managed.map((m) => m.siteId));
   }

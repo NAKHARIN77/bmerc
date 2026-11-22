@@ -165,21 +165,21 @@ a{color:var(--accent)}
 <tr><td>รับเครื่องเข้า (เปิดใบงาน)</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td></tr>
 <tr><td>มอบหมายงานให้ช่าง</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c n">—</td></tr>
 <tr><td>เปลี่ยนสถานะงาน, เขียนบันทึกซ่อม</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c n">—</td></tr>
-<tr><td>เบิกอะไหล่เข้างาน</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c y">✓</td></tr>
-<tr><td>รับอะไหล่เข้า, ปรับยอดสต็อก</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
+<tr><td>เบิกอะไหล่เข้างาน</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">งานตัวเอง</td><td class="c p">ไซต์ตัวเอง</td></tr>
+<tr><td>รับอะไหล่เข้า, ปรับยอด, โอนระหว่างไซต์</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c p">ไซต์ตัวเอง</td></tr>
 <tr><td>จัดการแคตตาล็อกอะไหล่</td><td class="c n">—</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c y">✓</td></tr>
 <tr><td>พิมพ์ QR, ดูประวัติเครื่อง</td><td class="c n">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">ดูได้</td></tr>
 <tr><td>ออกใบแจ้งหนี้ค่าซ่อม, ยืนยันสลิปลูกค้า</td><td class="c n">—</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
-<tr><td>ดูรายงาน</td><td class="c n">ตัวเลขรวม</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c p">สต็อก</td></tr>
+<tr><td>ดูรายงาน</td><td class="c n">ตัวเลขรวม</td><td class="c y">✓</td><td class="c p">ไซต์ตัวเอง</td><td class="c p">ทีมตัวเอง</td><td class="c n">—</td><td class="c p">สต็อกไซต์ตัวเอง</td></tr>
 <tr><td>ดู audit log</td><td class="c y">ทุกบริษัท</td><td class="c p">บริษัทตัวเอง</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
 <tr><td>ตั้งโควตา, ระงับหรือเปิดบริษัท, ดูรายได้</td><td class="c y">✓</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td><td class="c n">—</td></tr>
 </tbody></table></div>
-<p>ผู้จัดการไซต์ (<code>site_manager</code>) เห็นเฉพาะไซต์ที่ผูกไว้ในตาราง <code>site_managers</code> คนเดียวดูแลได้หลายไซต์โดยไม่จำกัดจำนวน ส่วนแอดมินบริษัทยังเห็นทั้งบริษัท สิทธิ์ในคอลัมน์นี้เป็นข้อเสนอ ต้องให้ผู้จัดการไซต์ตัวจริงยืนยัน</p>
+<p>ผู้จัดการไซต์ (<code>site_manager</code>) และคนคุมสต็อก (<code>stock_keeper</code>) เห็นเฉพาะไซต์ที่ผูกไว้ในตาราง <code>user_sites</code> คนเดียวดูแลได้หลายไซต์โดยไม่จำกัดจำนวน ส่วนแอดมินบริษัทยังเห็นทั้งบริษัท สิทธิ์ในคอลัมน์นี้เป็นข้อเสนอ ต้องให้ผู้จัดการไซต์ตัวจริงยืนยัน</p>
 <h3>ขอบเขตข้อมูลที่แต่ละบทบาทเห็น</h3>
 <p>RLS จำกัดข้อมูลให้อยู่ในบริษัทเดียว แล้ว API กรองต่อตามบทบาท (<code>apps/api/src/auth/scope.ts</code>) ทุก query ของบริษัทต้องใช้ตัวกรองนี้</p>
 <ul>
-<li><b>แอดมินบริษัท, คนคุมสต็อก:</b> ทุกไซต์ในบริษัท</li>
-<li><b>ผู้จัดการไซต์:</b> เฉพาะไซต์ใน <code>site_managers</code></li>
+<li><b>แอดมินบริษัท:</b> ทุกไซต์ในบริษัท</li>
+<li><b>ผู้จัดการไซต์, คนคุมสต็อก:</b> เฉพาะไซต์ใน <code>user_sites</code> คนคุมสต็อกเห็นสต็อกและงานซ่อม (เพื่อเบิกอะไหล่เข้างาน) เฉพาะไซต์ที่ดูแล แต่เห็นแคตตาล็อกอะไหล่ทั้งบริษัท และไม่สังกัดทีม</li>
 <li><b>หัวหน้าช่าง, ช่าง:</b> เฉพาะไซต์ของทีมตัวเอง และเห็นเฉพาะงานที่ยังไม่มีคนรับ หรืองานที่คนในทีมเดียวกันรับไว้ ช่างที่ยังไม่มีทีมจะไม่เห็นงานเลย</li>
 </ul>
 <p>เปิดงานที่อยู่นอกขอบเขตจะได้ 404 ไม่ใช่ 403 เพื่อไม่บอกว่างานนั้นมีอยู่ เปลี่ยนบทบาท ทีม หรือไซต์แล้วมีผลทันทีในคำขอถัดไป เพราะระบบอ่านสิทธิ์จากฐานข้อมูลทุกครั้ง ไม่ได้เก็บไว้ใน token</p>
@@ -245,7 +245,7 @@ erDiagram
 <tbody>
 <tr><td><code>customers</code></td><td>name, contact_name, email, phone, country</td><td></td></tr>
 <tr><td><code>sites</code></td><td>name, country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>สาขาของศูนย์ซ่อม</td></tr>
-<tr><td><code>site_managers</code></td><td>user_id, site_id</td><td>ไซต์ที่ผู้จัดการไซต์ดูแล PK (user_id, site_id)</td></tr>
+<tr><td><code>user_sites</code></td><td>user_id, site_id</td><td>ไซต์ที่ผู้จัดการไซต์หรือคนคุมสต็อกดูแล PK (user_id, site_id)</td></tr>
 <tr><td><code>teams</code></td><td>site_id, name, head_user_id</td><td></td></tr>
 <tr><td><code>devices</code></td><td>customer_id, kind <span class="pill info">miner / hashboard / control_board / psu / other</span>, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, kind, serial_no)</td></tr>
 <tr><td><code>jobs</code></td><td>number, device_id, customer_id, site_id, assignee_id, status, priority, reported_fault, work_note, unrepairable_reason, received_at, qc_passed_at, dispatched_at</td><td>เลขใบงานเรียงต่อกันในแต่ละบริษัท</td></tr>
@@ -393,7 +393,8 @@ stateDiagram-v2
 <li><b>ภาษา (Q4):</b> เว็บ อีเมล และข้อความในระบบใช้ภาษาอังกฤษทั้งหมด</li>
 <li><b>ของที่รับเข้า:</b> ลูกค้าส่งได้ทั้งเครื่องทั้งตัวและบอร์ดเดี่ยว จึงเพิ่ม <code>devices.kind</code> และ serial ของบอร์ดใน <code>job_components</code> เพื่อให้ค้นประวัติด้วย serial ได้ทั้งสองแบบ</li>
 <li><b>ลูกค้า:</b> ไม่มีบัญชีและเข้าเว็บไม่ได้ ผู้ใช้ระบบมีแค่เจ้าของระบบ และพนักงานของบริษัท (แอดมิน ผู้จัดการไซต์ หัวหน้าช่าง ช่าง คนคุมสต็อก)</li>
-<li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>site_managers</code> คนเดียวดูแลได้หลายไซต์</li>
+<li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>user_sites</code> คนเดียวดูแลได้หลายไซต์</li>
+<li><b>คนคุมสต็อก:</b> ผูกกับไซต์แบบเดียวกับผู้จัดการไซต์ เลือกได้ 1 ไซต์หรือหลายไซต์ รับเข้า เบิก และปรับยอดได้เฉพาะไซต์ที่ดูแล การโอนระหว่างไซต์ให้ต้นทางบันทึกโอนออก แล้วปลายทางกดรับของ แจ้งเตือนของใกล้หมดส่งให้คนคุมสต็อกของไซต์นั้นและแอดมิน</li>
 <li><b>ค่าซ่อม:</b> ใช้ตาราง <code>job_invoices</code>, <code>job_invoice_lines</code> และ <code>job_payments</code> แยกจากใบแจ้งหนี้ค่าแพ็กเกจ</li>
 <li><b>การรับชำระ:</b> เฟสแรกใช้โอนเงินแล้วแนบสลิป มีคนตรวจและกดยืนยัน ทั้งค่าซ่อมและค่าแพ็กเกจ ส่วนการตัดเงินอัตโนมัติผ่าน webhook ทำหลังเปิดขาย</li>
 </ul>

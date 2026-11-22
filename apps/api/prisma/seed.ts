@@ -17,7 +17,7 @@ export const DEMO_PASSWORD = 'Demo1234!';
 async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
-  await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, site_managers, user_tokens,
+  await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
     job_parts, stock_movements, site_stock, qr_print_logs, job_components, job_events,
     jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
     companies, plans RESTART IDENTITY CASCADE`);
@@ -93,15 +93,17 @@ async function main() {
   const tech2 = await db.user.create({
     data: { companyId: C, email: 'tech2@siamhash.demo', passwordHash, fullName: 'Wichai R.', role: 'technician', teamId: beta.id },
   });
-  await db.user.create({
-    data: { companyId: C, email: 'stock@siamhash.demo', passwordHash, fullName: 'Malee T.', role: 'stock_keeper', teamId: alpha.id },
+  // Stock keeper for Bangkok only: stock and jobs of site1.
+  const keeper = await db.user.create({
+    data: { companyId: C, email: 'stock@siamhash.demo', passwordHash, fullName: 'Malee T.', role: 'stock_keeper' },
   });
+  await db.userSite.create({ data: { companyId: C, userId: keeper.id, siteId: site1.id } });
   await db.team.update({ where: { id: alpha.id }, data: { headUserId: head.id } });
   // Site manager for Chonburi only: sees site2's jobs and staff, not Bangkok's.
   const manager = await db.user.create({
     data: { companyId: C, email: 'manager@siamhash.demo', passwordHash, fullName: 'Pranee S.', role: 'site_manager' },
   });
-  await db.siteManager.create({ data: { companyId: C, userId: manager.id, siteId: site2.id } });
+  await db.userSite.create({ data: { companyId: C, userId: manager.id, siteId: site2.id } });
 
   // Parts + stock per site (some below minimum to show "Low")
   const partDefs = [
@@ -191,7 +193,7 @@ async function main() {
 
   console.log(`Seeded. All demo accounts use password: ${DEMO_PASSWORD}`);
   console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · manager@siamhash.demo (site manager, Chonburi)');
-  console.log('  head@siamhash.demo (head technician) · tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper) · admin@northminer.demo (suspended company)');
+  console.log('  head@siamhash.demo (head technician) · tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper, Bangkok) · admin@northminer.demo (suspended company)');
 }
 
 main()

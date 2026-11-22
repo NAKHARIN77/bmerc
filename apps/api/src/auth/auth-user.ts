@@ -13,3 +13,7 @@ export interface AuthUser {
 }
 
 export const COMPANY_ROLES: Role[] = ['company_admin', 'site_manager', 'head_technician', 'technician', 'stock_keeper'];
+/** Roles whose visibility comes from user_sites (one or more sites). */
+export const SITE_ROLES: Role[] = ['site_manager', 'stock_keeper'];
+/** Roles whose visibility comes from their team's site. */
+export const TEAM_ROLES: Role[] = ['head_technician', 'technician'];

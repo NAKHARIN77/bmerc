@@ -6,9 +6,8 @@ import { AuditService } from '../audit/audit.service.js';
 import { ApiError, conflict, forbidden, notFound, parse } from '../common/http.js';
 import { uuid } from '../common/paging.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
-import { COMPANY_ROLES, type AuthUser } from '../auth/auth-user.js';
+import { COMPANY_ROLES, TEAM_ROLES, type AuthUser } from '../auth/auth-user.js';
 import { canSeeSite } from '../auth/scope.js';
-import type { Role } from '../generated/prisma/enums.js';
 
 const name = z.string().trim().min(2).max(100);
 const TeamBody = z.object({ siteId: z.uuid(), name, headUserId: z.uuid().nullable().optional() });
@@ -17,8 +16,6 @@ const TeamPatch = z
   .refine((b) => Object.keys(b).length > 0, 'Nothing to update');
 const MembersBody = z.object({ userIds: z.array(z.uuid()).max(500) });
 
-/** Roles that sit in a team. Admins and site managers work across teams. */
-const TEAM_ROLES: Role[] = ['head_technician', 'technician', 'stock_keeper'];
 
 const invalid = (message: string, field: string, details?: unknown) =>
   new ApiError(HttpStatus.BAD_REQUEST, 'VALIDATION_FAILED', message, details ?? [{ path: [field], message }]);
@@ -105,7 +102,7 @@ export class TeamsController {
     if (users.length !== userIds.length) throw invalid('One or more users were not found', 'userIds');
     const wrongRole = users.filter((u) => !u.role || !TEAM_ROLES.includes(u.role));
     if (wrongRole.length) {
-      throw invalid('Admins and site managers are not team members', 'userIds', wrongRole.map((u) => ({ path: ['userIds'], message: `${u.id} has role ${u.role}` })));
+      throw invalid('Only head technicians and technicians belong to a team; admins, site managers and stock keepers are linked to sites', 'userIds', wrongRole.map((u) => ({ path: ['userIds'], message: `${u.id} has role ${u.role}` })));
     }
     if (me.role === 'site_manager') {
       // A site manager may only pull in people who are unassigned or already at one of their sites.

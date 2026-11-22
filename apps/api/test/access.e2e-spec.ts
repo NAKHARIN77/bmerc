@@ -66,9 +66,16 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
       return (r.body.items as Array<{ site: { id: string } }>).map((j) => j.site.id);
     };
 
-    it('company admin and stock keeper see every job', async () => {
+    it('company admin sees every job', async () => {
       expect(await jobSites('admin@siamhash.demo')).toHaveLength(7);
-      expect(await jobSites('stock@siamhash.demo')).toHaveLength(7);
+    });
+
+    it('a stock keeper sees only the sites linked to them', async () => {
+      const s = await jobSites('stock@siamhash.demo');
+      expect(s).toHaveLength(4);
+      expect(new Set(s)).toEqual(new Set([bangkok]));
+      const me = (await get('stock@siamhash.demo', '/me').expect(200)).body;
+      expect(me.siteIds).toEqual([bangkok]);
     });
 
     it('technicians see only their team site', async () => {
@@ -217,7 +224,7 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
     const email = `reset-${tag}@siamhash.demo`;
 
     beforeAll(async () => {
-      const r = await post('admin@siamhash.demo', '/users', { email, fullName: 'Reset Me', role: 'stock_keeper' }).expect(201);
+      const r = await post('admin@siamhash.demo', '/users', { email, fullName: 'Reset Me', role: 'stock_keeper', siteIds: [bangkok] }).expect(201);
       created.push(r.body.id);
       await http().post('/api/v1/auth/accept-invite').send({ token: lastToken(email, '/accept-invite'), password: 'OldPass-1234' }).expect(200);
     });

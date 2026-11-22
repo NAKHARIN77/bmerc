@@ -1,6 +1,6 @@
 "use client";
 
-import { ROLE_LABEL, ROLES, type Role } from "@bmerc/shared";
+import { ROLE_LABEL, ROLES, SITE_ROLES, TEAM_ROLES, type Role } from "@bmerc/shared";
 import { useMemo, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
@@ -10,7 +10,6 @@ import type { Site, Team, UserRow } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { Alert, Button, Chip, Drawer, ErrorState, Field, Input, Loading, PageHeader, Select, Table } from "@/components/ui";
 
-const NEEDS_TEAM: Role[] = ["head_technician", "technician"];
 
 type Editing = { mode: "invite" } | { mode: "edit"; user: UserRow } | null;
 
@@ -71,7 +70,7 @@ export function UsersPage() {
             {
               header: "Team / sites",
               cell: (u) =>
-                u.role === "site_manager"
+                u.role && SITE_ROLES.includes(u.role)
                   ? u.siteIds.map((id) => siteName.get(id) ?? "Unknown site").join(", ") || "—"
                   : u.team
                     ? `${u.team.name} · ${siteName.get(u.team.siteId) ?? ""}`
@@ -150,8 +149,8 @@ function UserForm({ user, isSelf, sites, teams, onDone }: { user: UserRow | null
     const body = {
       fullName: f.get("fullName"),
       role,
-      teamId: role === "site_manager" ? null : teamId,
-      siteIds: role === "site_manager" ? siteIds : [],
+      teamId: TEAM_ROLES.includes(role) ? teamId : null,
+      siteIds: SITE_ROLES.includes(role) ? siteIds : [],
       ...(user ? {} : { email: f.get("email") }),
     };
     setBusy(true);
@@ -198,7 +197,7 @@ function UserForm({ user, isSelf, sites, teams, onDone }: { user: UserRow | null
         )}
       </Field>
 
-      {role === "site_manager" ? (
+      {SITE_ROLES.includes(role) ? (
         <fieldset className="mb-4">
           <legend className="mb-1.5 text-xs font-medium text-muted">Sites managed</legend>
           <div className="rounded-lg bg-field p-3">
@@ -215,14 +214,17 @@ function UserForm({ user, isSelf, sites, teams, onDone }: { user: UserRow | null
             ))}
           </div>
           <p className={`mt-1 text-xs ${fields.siteIds ? "text-danger" : "text-neutral"}`}>
-            {fields.siteIds ?? "A site manager sees only these sites. Pick one or more."}
+            {fields.siteIds ??
+              (role === "stock_keeper"
+                ? "Stock and jobs of these sites only. Pick one or more."
+                : "A site manager sees only these sites. Pick one or more.")}
           </p>
         </fieldset>
-      ) : (
-        <Field label="Team" error={fields.teamId} hint={NEEDS_TEAM.includes(role) ? "Technicians see the jobs of their team's site" : "Optional"}>
+      ) : TEAM_ROLES.includes(role) ? (
+        <Field label="Team" error={fields.teamId} hint="Technicians see the jobs of their team's site">
           {(id) => (
             <Select id={id} name="teamId" defaultValue={user?.teamId ?? ""}>
-              <option value="">{NEEDS_TEAM.includes(role) ? "Choose a team…" : "No team"}</option>
+              <option value="">Choose a team…</option>
               {bySite.map((g) => (
                 <optgroup key={g.site.id} label={g.site.name}>
                   {g.teams.map((t) => (
@@ -235,6 +237,8 @@ function UserForm({ user, isSelf, sites, teams, onDone }: { user: UserRow | null
             </Select>
           )}
         </Field>
+      ) : (
+        <p className="mb-4 text-xs text-muted">Company admins see every site and are not in a team.</p>
       )}
 
       <Button type="submit" busy={busy} className="mt-2 w-full">

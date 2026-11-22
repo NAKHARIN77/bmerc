@@ -5,7 +5,7 @@ import { AuthService } from '../auth/auth.service.js';
 import { ApiError, conflict, forbidden, notFound } from '../common/http.js';
 import { assertSeat } from '../common/limits.js';
 import type { Role } from '../generated/prisma/enums.js';
-import type { AuthUser } from '../auth/auth-user.js';
+import { SITE_ROLES, TEAM_ROLES, type AuthUser } from '../auth/auth-user.js';
 
 export interface UserInput {
   email: string;
@@ -38,13 +38,17 @@ export class UsersService {
     private readonly auth: AuthService,
   ) {}
 
-  /** Admin: everyone in the company. Site manager: staff in teams at their sites. */
+  /** Admin: everyone in the company. Site manager: staff in teams at their sites and people linked to those sites. */
   async list(me: AuthUser) {
     const prisma = this.db.raw;
     const where: Record<string, unknown> = { companyId: me.companyId! };
     if (me.siteIds !== null) {
-      const teams = await this.db.tenant(me).team.findMany({ where: { siteId: { in: me.siteIds } }, select: { id: true } });
-      where.OR = [{ teamId: { in: teams.map((t) => t.id) } }, { id: me.id }];
+      const db = this.db.tenant(me);
+      const [teams, links] = await Promise.all([
+        db.team.findMany({ where: { siteId: { in: me.siteIds } }, select: { id: true } }),
+        db.userSite.findMany({ where: { siteId: { in: me.siteIds } }, select: { userId: true } }),
+      ]);
+      where.OR = [{ teamId: { in: teams.map((t) => t.id) } }, { id: { in: links.map((l) => l.userId) } }, { id: me.id }];
     }
     const users = await prisma.user.findMany({ where, select: PUBLIC_FIELDS, orderBy: { createdAt: 'asc' } });
     return this.decorate(me, users);
@@ -69,7 +73,7 @@ export class UsersService {
         data: { companyId: me.companyId!, email, fullName: input.fullName, role: input.role, teamId: input.teamId ?? null },
       });
       if (siteIds.length) {
-        await tx.siteManager.createMany({ data: siteIds.map((siteId) => ({ companyId: me.companyId!, userId: u.id, siteId })) });
+        await tx.userSite.createMany({ data: siteIds.map((siteId) => ({ companyId: me.companyId!, userId: u.id, siteId })) });
       }
       return u;
     });
@@ -88,15 +92,15 @@ export class UsersService {
     }
     const role = patch.role ?? before.role!;
     const teamId = patch.teamId !== undefined ? patch.teamId : before.teamId;
-    const wantedSites = patch.siteIds ?? (role === 'site_manager' ? before.siteIds : []);
+    const wantedSites = patch.siteIds ?? (SITE_ROLES.includes(role) ? before.siteIds : []);
     if (before.role === 'company_admin' && role !== 'company_admin') await this.assertAnotherAdmin(me, id);
     const siteIds = await this.checkAssignment(me, role, teamId, wantedSites);
 
     await this.db.tenantTx(me, async (tx) => {
       await tx.user.update({ where: { id }, data: { fullName: patch.fullName, role, teamId } });
-      await tx.siteManager.deleteMany({ where: { userId: id } });
+      await tx.userSite.deleteMany({ where: { userId: id } });
       if (siteIds.length) {
-        await tx.siteManager.createMany({ data: siteIds.map((siteId) => ({ companyId: me.companyId!, userId: id, siteId })) });
+        await tx.userSite.createMany({ data: siteIds.map((siteId) => ({ companyId: me.companyId!, userId: id, siteId })) });
       }
     });
     const after = await this.get(me, id);
@@ -138,21 +142,24 @@ export class UsersService {
   // ───── Rules ─────
 
   /**
-   * site_manager: one or more sites, no team needed.
+   * site_manager, stock_keeper: one or more sites, no team.
    * head_technician / technician: must be in a team (their team decides which jobs they see).
-   * Others: no sites.
+   * company_admin: neither.
    */
   private async checkAssignment(me: AuthUser, role: Role, teamId: string | null, siteIds: string[]) {
     const db = this.db.tenant(me);
     if (teamId && !(await db.team.findUnique({ where: { id: teamId }, select: { id: true } }))) {
       throw invalid('Team not found', 'teamId');
     }
-    if ((role === 'head_technician' || role === 'technician') && !teamId) {
+    if (TEAM_ROLES.includes(role) && !teamId) {
       throw invalid('Pick a team for this role', 'teamId');
     }
-    if (role !== 'site_manager') return [];
+    if (!TEAM_ROLES.includes(role) && teamId) {
+      throw invalid('Only head technicians and technicians belong to a team', 'teamId');
+    }
+    if (!SITE_ROLES.includes(role)) return [];
     const unique = [...new Set(siteIds)];
-    if (!unique.length) throw invalid('A site manager needs at least one site', 'siteIds');
+    if (!unique.length) throw invalid('Pick at least one site for this role', 'siteIds');
     const found = await db.site.count({ where: { id: { in: unique } } });
     if (found !== unique.length) throw invalid('One or more sites were not found', 'siteIds');
     return unique;
@@ -178,7 +185,7 @@ export class UsersService {
     const db = this.db.tenant(me);
     const ids = users.map((u) => u.id);
     const [links, teams] = await Promise.all([
-      db.siteManager.findMany({ where: { userId: { in: ids } }, select: { userId: true, siteId: true } }),
+      db.userSite.findMany({ where: { userId: { in: ids } }, select: { userId: true, siteId: true } }),
       db.team.findMany({
         where: { id: { in: users.map((u) => u.teamId).filter((x): x is string => !!x) } },
         select: { id: true, name: true, siteId: true },

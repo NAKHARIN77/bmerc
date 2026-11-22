@@ -4,8 +4,8 @@ import type { AuthUser } from './auth-user.js';
 // Who sees what inside a company (design doc section 4). RLS already limits rows to the
 // company; these filters narrow it further by role. Add them to every tenant query.
 //
-//   company_admin, stock_keeper   whole company
-//   site_manager                  sites linked in site_managers
+//   company_admin                 whole company
+//   site_manager, stock_keeper    sites linked in user_sites
 //   head_technician, technician   their team's site: unassigned jobs and jobs held by teammates
 
 const NOTHING = { id: { in: [] as string[] } };
@@ -18,9 +18,9 @@ export function resolveSiteIds(
 ): string[] | null {
   switch (role) {
     case 'company_admin':
-    case 'stock_keeper':
       return null;
     case 'site_manager':
+    case 'stock_keeper':
       return managedSiteIds;
     case 'head_technician':
     case 'technician':
