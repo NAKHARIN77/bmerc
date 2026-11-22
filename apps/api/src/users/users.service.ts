@@ -3,6 +3,7 @@ import { DbService } from '../db/db.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { ApiError, conflict, forbidden, notFound } from '../common/http.js';
+import { assertSeat } from '../common/limits.js';
 import type { Role } from '../generated/prisma/enums.js';
 import type { AuthUser } from '../auth/auth-user.js';
 
@@ -158,15 +159,8 @@ export class UsersService {
   }
 
   /** Plan seat limit: active users, including people who have not accepted their invite yet. */
-  private async assertSeatAvailable(me: AuthUser) {
-    const sub = await this.db.raw.subscription.findUnique({ where: { companyId: me.companyId! }, include: { plan: true } });
-    const override = (sub?.overrideLimits as { maxUsers?: number | null } | null)?.maxUsers;
-    const limit = override !== undefined ? override : sub?.plan.maxUsers;
-    if (limit === null || limit === undefined) return;
-    const used = await this.db.raw.user.count({ where: { companyId: me.companyId!, isActive: true } });
-    if (used >= limit) {
-      throw conflict('QUOTA_USERS', `Your plan allows ${limit} active user${limit === 1 ? '' : 's'}. Upgrade the plan or deactivate someone first`, { limit, used });
-    }
+  private assertSeatAvailable(me: AuthUser) {
+    return assertSeat(this.db.raw, me.companyId!);
   }
 
   private async assertAnotherAdmin(me: AuthUser, exceptId: string) {

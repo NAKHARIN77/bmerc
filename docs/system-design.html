@@ -330,9 +330,9 @@ stateDiagram-v2
 <tr><td>Me</td><td><code>GET /me</code> · <code>PATCH /me/password</code></td><td>ทุกหน้า</td></tr>
 <tr><td>Company</td><td><code>GET/PATCH /company</code> · <code>GET /company/usage</code></td><td>Setup wizard, Subscription</td></tr>
 <tr><td>Users</td><td><code>GET/POST /users</code> · <code>GET/PATCH /users/:id</code> · <code>POST /users/:id/deactivate</code> · <code>/activate</code> · <code>/resend-invite</code></td><td>Technicians, Add technician</td></tr>
-<tr><td>Customers</td><td><code>GET/POST /customers</code> · <code>GET/PATCH /customers/:id</code></td><td>Customers, Customer detail</td></tr>
+<tr><td>Customers</td><td><code>GET/POST /customers</code> · <code>GET/PATCH/DELETE /customers/:id</code> (ลบได้เฉพาะลูกค้าที่ยังไม่มีเครื่อง งาน หรือไซต์)</td><td>Customers, Customer detail</td></tr>
 <tr><td>Sites</td><td><code>GET/POST /sites</code> · <code>GET/PATCH /sites/:id</code> · <code>GET /sites/:id/stock</code></td><td>Sites, Site detail</td></tr>
-<tr><td>Teams</td><td><code>GET/POST /teams</code> · <code>PATCH /teams/:id</code> · <code>PUT /teams/:id/members</code></td><td>Teams, New team</td></tr>
+<tr><td>Teams</td><td><code>GET/POST /teams</code> · <code>GET/PATCH/DELETE /teams/:id</code> · <code>PUT /teams/:id/members</code></td><td>Teams, New team</td></tr>
 <tr><td>Jobs</td><td><code>GET/POST /jobs</code> · <code>GET /jobs/:id</code> · <code>POST /jobs/:id/assign</code> · <code>POST /jobs/:id/transition</code> · <code>PATCH /jobs/:id/note</code> · <code>POST /jobs/:id/parts</code> · <code>DELETE /jobs/:id/parts/:jpId</code> · <code>PUT /jobs/:id/components</code></td><td>Jobs, Job detail, Receive job, Bench board</td></tr>
 <tr><td>Board</td><td><code>GET /board?site=&amp;assignee=</code></td><td>Technician Bench Board</td></tr>
 <tr><td>Devices / QR</td><td><code>GET /devices/by-qr/:code</code> · <code>GET /devices/:id/history</code> · <code>GET /jobs/:id/label</code> (PDF 50×30 mm) · <code>POST /jobs/:id/label/printed</code></td><td>Scan QR, Device history, Print QR</td></tr>
@@ -344,6 +344,7 @@ stateDiagram-v2
 <tr><td>Audit</td><td><code>GET /audit-logs?action=&amp;actorUserId=</code></td><td>Audit log</td></tr>
 <tr><td>Platform</td><td><code>GET /platform/companies</code> · <code>GET /platform/overview</code> · <code>PATCH /platform/companies/:id/limits</code> · <code>POST /platform/companies/:id/suspend</code> · <code>/activate</code> · <code>POST /platform/invoices/:id/mark-paid</code> · <code>GET /platform/revenue</code> · <code>GET /platform/health</code></td><td>Companies, Quotas, Revenue, Platform health</td></tr>
 </tbody></table></div>
+<p>ไซต์และอะไหล่ไม่มีการลบ เพราะผูกกับสต็อกและประวัติงาน ให้เปลี่ยนสถานะเป็น <code>inactive</code> หรือตั้ง <code>isActive: false</code> แทน การสร้างไซต์และการเปิดไซต์ที่ปิดไว้ต้องไม่เกิน <code>max_sites</code> ของแพ็กเกจ (ไซต์ที่เป็น inactive ไม่นับ) ทุก id ที่ส่งเข้ามาอ้างอิงข้อมูลอื่น เช่น customerId, siteId หรือ userId ต้องเช็กว่าอยู่ในบริษัทเดียวกัน เพราะ foreign key ไม่ผ่าน RLS</p>
 <p>รายการทั้งหมดรองรับ <code>?page=&amp;limit=&amp;q=&amp;sort=</code> และรูปแบบ error ใช้ร่วมกันคือ <code>{ "code": "STOCK_INSUFFICIENT", "message": "...", "details": {...} }</code></p>
 
 <h2 id="prod">9. สิ่งที่ต้องมีก่อนขึ้นระบบจริง</h2>
