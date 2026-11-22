@@ -94,6 +94,15 @@ describe('Row-Level Security between companies', () => {
     await expect(
       owner.jobPayment.create({ data: { companyId: b, invoiceId: invoice.id, amountCents: 0, paidAt: new Date() } }),
     ).rejects.toThrow();
+
+    // Platform owner: company data yes, repair work no (enforced by RLS, not only the API).
+    const admin = forPlatformAdmin(app);
+    expect(await admin.site.findMany({ where: { companyId: b } })).toHaveLength(1);
+    expect(await admin.siteManager.findMany({ where: { companyId: b } })).toHaveLength(1);
+    expect(await admin.job.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await admin.device.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await admin.jobInvoice.findMany({ where: { companyId: b } })).toHaveLength(0);
+    expect(await admin.jobPayment.findMany({ where: { companyId: b } })).toHaveLength(0);
   });
 
   it('audit log rows cannot be changed or deleted', async () => {

@@ -48,16 +48,18 @@ export class AuthService {
     if (await this.prisma.user.findUnique({ where: { email } })) {
       throw conflict('EMAIL_TAKEN', 'This email is already registered');
     }
-    const trial = await this.prisma.plan.findUnique({ where: { code: 'trial' } });
-    if (!trial) throw new Error('Plan "trial" missing: run the seed');
+    // New companies start on Basic (decided 2026-11-22). Billing for the first period comes with plan step 7.
+    const basic = await this.prisma.plan.findUnique({ where: { code: 'basic' } });
+    if (!basic) throw new Error('Plan "basic" missing: run the seed');
     const now = new Date();
-    const end = new Date(now.getTime() + 14 * 24 * 3600 * 1000);
+    const end = new Date(now);
+    end.setMonth(end.getMonth() + 1);
     const passwordHash = await this.hash(input.password);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const company = await tx.company.create({ data: { name: input.companyName, billingEmail: email } });
       await tx.subscription.create({
-        data: { companyId: company.id, planId: trial.id, status: 'trialing', currentPeriodStart: now, currentPeriodEnd: end },
+        data: { companyId: company.id, planId: basic.id, status: 'active', currentPeriodStart: now, currentPeriodEnd: end },
       });
       return tx.user.create({
         data: { companyId: company.id, email, passwordHash, fullName: input.fullName, role: 'company_admin' },

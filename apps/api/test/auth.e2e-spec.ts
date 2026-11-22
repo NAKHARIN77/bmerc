@@ -3,6 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/main.js';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.js';
 
 // Relies on the demo seed (npm run db:seed).
 const PW = 'Demo1234!';
@@ -18,6 +20,26 @@ describe('Auth (e2e)', () => {
     await app.init();
   });
   afterAll(() => app.close());
+
+  it('a new company starts on the Basic plan', async () => {
+    const email = `signup-${Date.now()}@new.demo`;
+    const r = await http().post('/api/v1/auth/register').send({ companyName: 'Signup Test Co', fullName: 'New Admin', email, password: 'Signup-1234' }).expect(201);
+    const me = await http().get('/api/v1/me').set('Authorization', `Bearer ${r.body.accessToken}`).expect(200);
+    expect(me.body).toMatchObject({ role: 'company_admin', company: { name: 'Signup Test Co', status: 'active', subscription: { status: 'active', plan: { code: 'basic' } } } });
+
+    const owner = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.MIGRATE_DATABASE_URL }) });
+    try {
+      const companyId = me.body.companyId as string;
+      await owner.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
+      await owner.auditLog.deleteMany({ where: { companyId } });
+      await owner.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
+      await owner.user.deleteMany({ where: { companyId } });
+      await owner.subscription.deleteMany({ where: { companyId } });
+      await owner.company.delete({ where: { id: companyId } });
+    } finally {
+      await owner.$disconnect();
+    }
+  });
 
   const login = (email: string, password = PW) => http().post('/api/v1/auth/login').send({ email, password });
 

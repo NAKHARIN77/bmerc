@@ -45,7 +45,7 @@ export function RegisterForm() {
       <Field label="Password" error={fields.password} hint={`At least ${MIN_PASSWORD} characters`}>
         {(id) => <Input id={id} name="password" type="password" autoComplete="new-password" minLength={MIN_PASSWORD} required />}
       </Field>
-      <p className="mb-3 text-xs text-muted">Your company starts on a 14-day trial. You can change the plan later.</p>
+      <p className="mb-3 text-xs text-muted">Your company starts on the Basic plan. You can upgrade later from Company settings.</p>
       <Button type="submit" busy={busy} className="w-full">
         Create account
       </Button>
