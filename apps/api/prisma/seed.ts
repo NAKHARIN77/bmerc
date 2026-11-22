@@ -73,10 +73,10 @@ async function main() {
   });
 
   const site1 = await db.site.create({
-    data: { companyId: C, customerId: bitfarm.id, name: 'Bangkok Hash Lab 01', country: 'Thailand', province: 'Bangkok', status: 'active' },
+    data: { companyId: C, name: 'Bangkok Hash Lab 01', country: 'Thailand', province: 'Bangkok', status: 'active' },
   });
   const site2 = await db.site.create({
-    data: { companyId: C, customerId: bkk.id, name: 'Chonburi Repair Hub', country: 'Thailand', province: 'Chonburi', status: 'active' },
+    data: { companyId: C, name: 'Chonburi Repair Hub', country: 'Thailand', province: 'Chonburi', status: 'active' },
   });
 
   const admin = await db.user.create({
@@ -173,8 +173,8 @@ async function main() {
     const co = await db.company.create({ data: { name: o.name, billingEmail: o.email, status: o.status } });
     await db.subscription.create({ data: { companyId: co.id, planId: o.plan, status: o.sub, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd } });
     await db.user.create({ data: { companyId: co.id, email: o.email, passwordHash, fullName: `${o.name} Admin`, role: 'company_admin' } });
-    const cust = await db.customer.create({ data: { companyId: co.id, name: `${o.name.split(' ')[0]} Farm`, country: 'Thailand' } });
-    await db.site.create({ data: { companyId: co.id, customerId: cust.id, name: `${o.name.split(' ')[0]} Site 01`, country: 'Thailand', status: 'active' } });
+    await db.customer.create({ data: { companyId: co.id, name: `${o.name.split(' ')[0]} Farm`, country: 'Thailand' } });
+    await db.site.create({ data: { companyId: co.id, name: `${o.name.split(' ')[0]} Site 01`, country: 'Thailand', status: 'active' } });
     if (o.plan === basic.id) {
       await db.invoice.create({
         data: {

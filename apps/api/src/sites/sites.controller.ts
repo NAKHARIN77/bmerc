@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { AuditService } from '../audit/audit.service.js';
-import { ApiError, notFound, parse } from '../common/http.js';
+import { notFound, parse } from '../common/http.js';
 import { uuid } from '../common/paging.js';
 import { changed } from '../common/diff.js';
 import { assertSiteSlot } from '../common/limits.js';
@@ -15,7 +15,6 @@ import { SiteStatus } from '../generated/prisma/enums.js';
 const text = (max: number) => z.string().trim().max(max).nullable().optional();
 const SiteBody = z.object({
   name: z.string().trim().min(2).max(200),
-  customerId: z.uuid().nullable().optional(), // null: the repair center's own site (see design doc Q1)
   country: text(100),
   province: text(100),
   address: text(500),
@@ -25,13 +24,10 @@ const SitePatch = SiteBody.partial().refine((b) => Object.keys(b).length > 0, 'N
 
 const select = {
   id: true, name: true, country: true, province: true, address: true, status: true, createdAt: true,
-  customer: { select: { id: true, name: true } },
   teams: { select: { id: true, name: true, headUserId: true }, orderBy: { name: 'asc' as const } },
 } as const;
 
-const invalid = (message: string, field: string) =>
-  new ApiError(HttpStatus.BAD_REQUEST, 'VALIDATION_FAILED', message, [{ path: [field], message }]);
-
+// A site is a branch of the repair center (not a customer location).
 // No delete: sites carry stock and job history. Set status to inactive instead.
 @Controller('sites')
 export class SitesController {
@@ -59,7 +55,6 @@ export class SitesController {
   @Post()
   async create(@CurrentUser() me: AuthUser, @Body() body: unknown, @Req() req: Request) {
     const data = parse(SiteBody, body);
-    await this.checkCustomer(me, data.customerId);
     if (data.status !== 'inactive') await assertSiteSlot(this.db.raw, me.companyId!);
     const site = await this.db.tenant(me).site.create({ data: { ...data, companyId: me.companyId! }, select });
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'site.created', entityType: 'site', entityId: site.id, after: data, ip: req.ip });
@@ -73,7 +68,6 @@ export class SitesController {
     const db = this.db.tenant(me);
     const before = await db.site.findUnique({ where: { id: parse(uuid, id) } });
     if (!before) throw notFound('Site');
-    await this.checkCustomer(me, data.customerId);
     if (before.status === 'inactive' && data.status && data.status !== 'inactive') {
       await assertSiteSlot(this.db.raw, me.companyId!);
     }
@@ -86,10 +80,4 @@ export class SitesController {
     return db.site.findUniqueOrThrow({ where: { id }, select });
   }
 
-  // Foreign keys are not subject to RLS, so check the customer belongs to this company ourselves.
-  private async checkCustomer(me: AuthUser, customerId: string | null | undefined) {
-    if (!customerId) return;
-    const found = await this.db.tenant(me).customer.findUnique({ where: { id: customerId }, select: { id: true } });
-    if (!found) throw invalid('Customer not found', 'customerId');
-  }
 }

@@ -23,7 +23,8 @@ const CustomerQuery = PageQuery.extend({ q: z.string().trim().max(100).optional(
 
 const detail = { id: true, name: true, contactName: true, email: true, phone: true, country: true, createdAt: true } as const;
 
-// Customers belong to the whole company (not one site), so everyone who receives jobs can pick from the full list.
+// Customers ship devices to the repair center; they never log in. They belong to the whole company (not one site),
+// so everyone who receives jobs can pick from the full list.
 // Contact details (email, phone) only come back from the detail endpoint, and each read is logged.
 @Controller('customers')
 export class CustomersController {
@@ -44,13 +45,13 @@ export class CustomersController {
     const [rows, total] = await Promise.all([
       db.customer.findMany({
         where,
-        select: { id: true, name: true, country: true, _count: { select: { sites: true, jobs: { where: { status: { notIn: ['qc_passed', 'dispatched'] } } } } } },
+        select: { id: true, name: true, country: true, _count: { select: { devices: true, jobs: { where: { status: { notIn: ['qc_passed', 'dispatched'] } } } } } },
         orderBy: { name: 'asc' },
         ...pageArgs(q),
       }),
       db.customer.count({ where }),
     ]);
-    return paged(rows.map(({ _count, ...c }) => ({ ...c, sites: _count.sites, openJobs: _count.jobs })), total, q);
+    return paged(rows.map(({ _count, ...c }) => ({ ...c, devices: _count.devices, openJobs: _count.jobs })), total, q);
   }
 
   @Roles('company_admin', 'site_manager', 'head_technician')
@@ -59,7 +60,10 @@ export class CustomersController {
   async get(@CurrentUser() me: AuthUser, @Param('id') id: string) {
     const c = await this.db.tenant(me).customer.findUnique({
       where: { id: parse(uuid, id) },
-      select: { ...detail, sites: { select: { id: true, name: true, country: true, province: true, status: true }, orderBy: { name: 'asc' } } },
+      select: {
+        ...detail,
+        devices: { select: { id: true, model: true, serialNo: true, qrCode: true }, orderBy: { createdAt: 'desc' }, take: 50 },
+      },
     });
     if (!c) throw notFound('Customer');
     return c;
@@ -89,7 +93,7 @@ export class CustomersController {
     return after;
   }
 
-  /** Only customers with no devices, jobs or sites; anything with history stays for the device record. */
+  /** Only customers with no devices or jobs; anything with history stays for the device record. */
   @Roles('company_admin')
   @Delete(':id')
   @HttpCode(204)
@@ -97,12 +101,12 @@ export class CustomersController {
     const db = this.db.tenant(me);
     const c = await db.customer.findUnique({
       where: { id: parse(uuid, id) },
-      select: { ...detail, _count: { select: { devices: true, jobs: true, sites: true } } },
+      select: { ...detail, _count: { select: { devices: true, jobs: true } } },
     });
     if (!c) throw notFound('Customer');
     const { _count, ...before } = c;
-    if (_count.devices || _count.jobs || _count.sites) {
-      throw conflict('IN_USE', 'This customer has devices, jobs or sites and cannot be deleted', _count);
+    if (_count.devices || _count.jobs) {
+      throw conflict('IN_USE', 'This customer has devices or jobs and cannot be deleted', _count);
     }
     await db.customer.delete({ where: { id } });
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'customer.deleted', entityType: 'customer', entityId: id, before, ip: req.ip });

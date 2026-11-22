@@ -81,14 +81,15 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       made.customers.push(id);
       await patch('admin@siamhash.demo', `/customers/${id}`, { phone: '+84 1' }).expect(200);
       const d = await get('head@siamhash.demo', `/customers/${id}`).expect(200);
-      expect(d.body).toMatchObject({ name: `Cust ${tag}`, phone: '+84 1', country: 'Vietnam', sites: [] });
+      expect(d.body).toMatchObject({ name: `Cust ${tag}`, phone: '+84 1', country: 'Vietnam', devices: [] });
       const logs = (await get('admin@siamhash.demo', '/audit-logs?action=view.customer&limit=1').expect(200)).body.items;
       expect(logs[0]).toMatchObject({ entityId: id, actor: { email: 'head@siamhash.demo' } });
     });
 
     it('list has counts but no contact details', async () => {
       const r = await get('admin@siamhash.demo', '/customers?q=BitFarm').expect(200);
-      expect(r.body.items[0]).toMatchObject({ name: 'BitFarm Siam', sites: 1 });
+      expect(r.body.items[0]).toMatchObject({ name: 'BitFarm Siam' });
+      expect(r.body.items[0].devices).toBeGreaterThan(0);
       expect(r.body.items[0].openJobs).toBeGreaterThan(0);
       expect(r.body.items[0]).not.toHaveProperty('email');
     });
@@ -116,10 +117,11 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
   });
 
   describe('sites', () => {
-    it("rejects a customer from another company (FKs bypass RLS, so the API checks)", async () => {
-      const bitfarm = (await get('admin@siamhash.demo', '/customers?q=BitFarm').expect(200)).body.items[0];
-      const r = await post('admin@rayong.demo', '/sites', { name: `Steal ${tag}`, customerId: bitfarm.id }).expect(400);
-      expect(r.body.details[0].path).toEqual(['customerId']);
+    it('a site has no customer: customers ship devices in', async () => {
+      const r = await post('admin@rayong.demo', '/sites', { name: `Plain ${tag}`, status: 'inactive', customerId: '00000000-0000-4000-8000-000000000000' }).expect(201);
+      made.sites.push(r.body.id);
+      expect(r.body).not.toHaveProperty('customer');
+      expect(r.body).not.toHaveProperty('customerId');
     });
 
     it('enforces the plan site limit; inactive sites do not count', async () => {

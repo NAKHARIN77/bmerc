@@ -111,8 +111,8 @@ a{color:var(--accent)}
 <thead><tr><th>คำ</th><th>ในโค้ด</th><th>ความหมาย</th></tr></thead>
 <tbody>
 <tr><td>บริษัท</td><td><code>Company</code></td><td>ศูนย์ซ่อมที่สมัครใช้ระบบ (tenant) ข้อมูลของแต่ละบริษัทแยกขาดจากกัน</td></tr>
-<tr><td>ลูกค้า</td><td><code>Customer</code></td><td>เจ้าของเครื่องขุด เช่น ฟาร์มขุด ที่ส่งเครื่องมาซ่อม</td></tr>
-<tr><td>ไซต์</td><td><code>Site</code></td><td>สถานที่ซ่อม มีทีมช่างและสต็อกอะไหล่ของตัวเอง (ดู Q1)</td></tr>
+<tr><td>ลูกค้า</td><td><code>Customer</code></td><td>เจ้าของเครื่องขุด เช่น ฟาร์มขุด ที่ส่งเครื่องหรือบอร์ดมาซ่อมที่ศูนย์ <b>ไม่มีบัญชีและเข้าระบบไม่ได้</b> เป็นแค่ข้อมูลที่บริษัทบันทึกไว้</td></tr>
+<tr><td>ไซต์</td><td><code>Site</code></td><td>สาขาของศูนย์ซ่อม มีทีมช่างและสต็อกอะไหล่ของตัวเอง ไม่ผูกกับลูกค้า เพราะไม่มีการออกไปซ่อมนอกสถานที่</td></tr>
 <tr><td>ทีม</td><td><code>Team</code></td><td>กลุ่มช่างประจำไซต์ มีหัวหน้าช่าง 1 คน</td></tr>
 <tr><td>เครื่อง</td><td><code>Device</code></td><td>เครื่องขุด 1 เครื่อง ระบุด้วย serial และรหัส QR เก็บประวัติซ่อมทุกครั้ง</td></tr>
 <tr><td>งานซ่อม</td><td><code>Job</code></td><td>ใบงาน 1 ใบต่อการรับเครื่อง 1 ครั้ง เลขรูปแบบ <code>TK-2026-0113</code></td></tr>
@@ -205,7 +205,7 @@ erDiagram
   SUBSCRIPTION ||--o{ INVOICE : bills
   COMPANY ||--o{ CUSTOMER : serves
   COMPANY ||--o{ SITE : runs
-  CUSTOMER |o--o{ SITE : "owns (Q1)"
+  CUSTOMER ||--o{ JOB : "sends in"
   SITE ||--o{ TEAM : hosts
   TEAM ||--o{ USER : members
   CUSTOMER ||--o{ DEVICE : owns
@@ -244,7 +244,7 @@ erDiagram
 <thead><tr><th>ตาราง</th><th>คอลัมน์สำคัญ</th><th>หมายเหตุ</th></tr></thead>
 <tbody>
 <tr><td><code>customers</code></td><td>name, contact_name, email, phone, country</td><td></td></tr>
-<tr><td><code>sites</code></td><td>name, customer_id (nullable), country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>ดู Q1</td></tr>
+<tr><td><code>sites</code></td><td>name, country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>สาขาของศูนย์ซ่อม</td></tr>
 <tr><td><code>site_managers</code></td><td>user_id, site_id</td><td>ไซต์ที่ผู้จัดการไซต์ดูแล PK (user_id, site_id)</td></tr>
 <tr><td><code>teams</code></td><td>site_id, name, head_user_id</td><td></td></tr>
 <tr><td><code>devices</code></td><td>customer_id, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, serial_no)</td></tr>
@@ -263,6 +263,7 @@ erDiagram
 </tbody></table></div>
 
 <h2 id="jobflow">6. สถานะงานซ่อม</h2>
+<p><b>ขั้นตอนจริง:</b> ลูกค้าส่งเครื่องหรือบอร์ดมาที่ศูนย์เอง (ไม่มีการออกไปซ่อมหน้างาน) → พนักงานเปิดใบงาน ค้นจาก serial ก่อนว่าเครื่องนี้เคยซ่อมมาหรือไม่ และบันทึกอาการเสีย → มอบหมายงานให้ช่างที่ไซต์ที่รับเครื่องไว้ → ช่างซ่อมตามสถานะด้านล่าง → ส่งคืนลูกค้า</p>
 <p>ใช้ 5 คอลัมน์ตามบอร์ดในต้นแบบ แล้วเพิ่มอีก 2 สถานะท้ายสุดสำหรับส่งคืนลูกค้า ห้ามแก้ status ตรง ๆ ทุกครั้งที่เปลี่ยนสถานะต้องผ่าน service และบันทึกลง <code>job_events</code></p>
 <div class="diagram"><pre class="mermaid">
 stateDiagram-v2
@@ -370,12 +371,11 @@ stateDiagram-v2
 <div class="week"><div class="d">สัปดาห์ 3 · 7–13 ธ.ค.</div><h4>สต็อกและ QR</h4><ul><li>แคตตาล็อก, รับเข้า/เบิก/ปรับยอด</li><li>ตัดสต็อกจากงาน, แจ้งเตือนของใกล้หมด</li><li>สร้าง QR, ฉลาก PDF, สแกนด้วยกล้อง</li><li>ประวัติเครื่อง</li></ul></div>
 <div class="week"><div class="d">สัปดาห์ 4 · 14–20 ธ.ค.</div><h4>แพ็กเกจและเตรียมเปิด</h4><ul><li>แพ็กเกจ, โควตา, ใบแจ้งหนี้, ระงับบริษัท</li><li>หน้าเจ้าของแพลตฟอร์ม, audit log</li><li>ทดสอบ, security check, ทดลองกู้ backup</li><li>ขึ้น staging ให้ลูกค้ารายแรกลองใช้</li></ul></div>
 </div>
-<div class="note warn"><b>ความเสี่ยงด้านเวลา:</b> แผนนี้ตึง ถ้าทีมมี dev น้อยกว่า 2 คนเต็มเวลา หรือข้อ Q1–Q3 ยังไม่ได้ตัดสินใจภายในสัปดาห์แรก ควรเลื่อนวันเปิดขาย หรือเปิดแบบ beta ให้ลูกค้าจำนวนจำกัดก่อน</div>
+<div class="note warn"><b>ความเสี่ยงด้านเวลา:</b> แผนนี้ตึง ถ้าทีมมี dev น้อยกว่า 2 คนเต็มเวลา หรือข้อ Q2–Q3 ยังไม่ได้ตัดสินใจภายในสัปดาห์แรก ควรเลื่อนวันเปิดขาย หรือเปิดแบบ beta ให้ลูกค้าจำนวนจำกัดก่อน</div>
 
 <h2 id="questions">11. เรื่องที่ต้องตัดสินใจ</h2>
 <p>เจอข้อขัดกันหรือข้อที่ยังไม่ชัดในต้นแบบ ต้องตัดสินใจก่อนเริ่มสัปดาห์ 2</p>
-<ol class="qs">
-<li><b>ไซต์เป็นของใคร:</b> ต้นแบบบอกว่า "Each site belongs to one customer" แต่ไซต์ก็มีทีมช่างและสต็อกของศูนย์ซ่อมด้วย และแพ็กเกจ Pro เขียนว่า "Multiple repair-center sites" ไซต์เป็นสาขาของศูนย์ซ่อม หรือเป็นฟาร์มของลูกค้าที่ช่างไปซ่อมหน้างาน? เอกสารนี้ออกแบบให้ <code>customer_id</code> ของไซต์เว้นว่างได้ เพื่อรองรับทั้ง 2 แบบ</li>
+<ol class="qs" style="counter-reset:q 1"><!-- Q1 decided; keep the other numbers stable -->
 <li><b>ราคาแพ็กเกจ:</b> หน้า Landing แสดง Pro ฿299/เดือน หน้า Pricing ยังเป็น [Price] ส่วนหน้า Revenue ตั้ง Basic ไว้ ฿1,500 ซึ่งแพงกว่า Pro ราคาจริงคือเท่าไร และราคารวม VAT หรือยัง?</li>
 <li><b>โควตาเต็ม:</b> เมื่อ Basic เปิดใบงานครบ 200 ใบ จะปิดไม่ให้เปิดเพิ่ม หรือให้เปิดต่อได้แล้วคิดเงินส่วนเกิน?</li>
 <li><b>ภาษาหน้าจอ:</b> ลูกค้าหลักอยู่ไทย เวียดนาม และมาเลเซีย ตอนเปิดขายต้องมีภาษาไทยด้วยไหม หรือใช้ภาษาอังกฤษอย่างเดียวไปก่อน?</li>
@@ -385,6 +385,8 @@ stateDiagram-v2
 </ol>
 <h3>ตัดสินใจแล้ว (22 พ.ย. 2026)</h3>
 <ul>
+<li><b>ไซต์ (Q1):</b> ไซต์คือสาขาของศูนย์ซ่อม ลูกค้าส่งเครื่องมาเอง ไม่มีการออกไปซ่อมนอกสถานที่ จึงลบ <code>sites.customer_id</code> ออก ลูกค้าผูกกับงานซ่อมและเครื่องแทน</li>
+<li><b>ลูกค้า:</b> ไม่มีบัญชีและเข้าเว็บไม่ได้ ผู้ใช้ระบบมีแค่เจ้าของระบบ และพนักงานของบริษัท (แอดมิน ผู้จัดการไซต์ หัวหน้าช่าง ช่าง คนคุมสต็อก)</li>
 <li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>site_managers</code> คนเดียวดูแลได้หลายไซต์</li>
 <li><b>ค่าซ่อม:</b> ใช้ตาราง <code>job_invoices</code>, <code>job_invoice_lines</code> และ <code>job_payments</code> แยกจากใบแจ้งหนี้ค่าแพ็กเกจ</li>
 <li><b>การรับชำระ:</b> เฟสแรกใช้โอนเงินแล้วแนบสลิป มีคนตรวจและกดยืนยัน ทั้งค่าซ่อมและค่าแพ็กเกจ ส่วนการตัดเงินอัตโนมัติผ่าน webhook ทำหลังเปิดขาย</li>

@@ -252,7 +252,6 @@ model Customer {
   createdAt   DateTime @default(now()) @map("created_at")
 
   company Company  @relation(fields: [companyId], references: [id])
-  sites   Site[]
   devices Device[]
   jobs    Job[]
 
@@ -260,19 +259,18 @@ model Customer {
   @@map("customers")
 }
 
+// A branch of the repair center. Customers ship devices in; no on-site repair (design doc Q1).
 model Site {
-  id         String     @id @default(uuid()) @db.Uuid
-  companyId  String     @map("company_id") @db.Uuid
-  customerId String?    @map("customer_id") @db.Uuid // nullable: see open question Q1
-  name       String
-  country    String?
-  province   String?
-  address    String?
-  status     SiteStatus @default(setup)
-  createdAt  DateTime   @default(now()) @map("created_at")
+  id        String     @id @default(uuid()) @db.Uuid
+  companyId String     @map("company_id") @db.Uuid
+  name      String
+  country   String?
+  province  String?
+  address   String?
+  status    SiteStatus @default(setup)
+  createdAt DateTime   @default(now()) @map("created_at")
 
   company        Company         @relation(fields: [companyId], references: [id])
-  customer       Customer?       @relation(fields: [customerId], references: [id])
   teams          Team[]
   jobs           Job[]
   stock          SiteStock[]
