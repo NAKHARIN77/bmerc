@@ -314,21 +314,32 @@ model Team {
   @@map("teams")
 }
 
+enum DeviceKind {
+  miner // whole machine
+  hashboard
+  control_board
+  psu
+  other
+}
+
+// What a customer sends in: a whole miner or a single board / PSU. History is looked up by serial.
 model Device {
-  id         String   @id @default(uuid()) @db.Uuid
-  companyId  String   @map("company_id") @db.Uuid
-  customerId String   @map("customer_id") @db.Uuid
-  model      String
-  serialNo   String   @map("serial_no")
-  hashrateTh Decimal? @map("hashrate_th") @db.Decimal(10, 2)
-  qrCode     String?  @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
-  createdAt  DateTime @default(now()) @map("created_at")
+  id         String     @id @default(uuid()) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  customerId String     @map("customer_id") @db.Uuid
+  kind       DeviceKind @default(miner)
+  model      String // e.g. Antminer S19 Pro, or the board model for a single board
+  serialNo   String     @map("serial_no")
+  hashrateTh Decimal?   @map("hashrate_th") @db.Decimal(10, 2)
+  qrCode     String?    @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
+  createdAt  DateTime   @default(now()) @map("created_at")
 
   company  Company  @relation(fields: [companyId], references: [id])
   customer Customer @relation(fields: [customerId], references: [id])
   jobs     Job[]
 
-  @@unique([companyId, serialNo])
+  @@unique([companyId, kind, serialNo])
+  @@index([companyId, serialNo])
   @@map("devices")
 }
 
@@ -481,16 +492,21 @@ model JobEvent {
 }
 
 model JobComponent {
-  id        String          @id @default(uuid()) @db.Uuid
-  companyId String          @map("company_id") @db.Uuid
-  jobId     String          @map("job_id") @db.Uuid
-  component String
-  workDone  String?         @map("work_done")
-  result    ComponentResult
+  id                  String          @id @default(uuid()) @db.Uuid
+  companyId           String          @map("company_id") @db.Uuid
+  jobId               String          @map("job_id") @db.Uuid
+  component           String // e.g. "Hashboard 2", "Control board"
+  // Serials of boards worked on inside a whole miner, so a board sent in alone later still shows its history.
+  serialNo            String?         @map("serial_no") // the board that was in the machine
+  replacementSerialNo String?         @map("replacement_serial_no") // the board fitted instead, when result = replaced
+  workDone            String?         @map("work_done")
+  result              ComponentResult
 
   job Job @relation(fields: [jobId], references: [id])
 
   @@index([jobId])
+  @@index([companyId, serialNo])
+  @@index([companyId, replacementSerialNo])
   @@map("job_components")
 }
 

@@ -18,7 +18,7 @@ const JobsQuery = PageQuery.extend({
 
 const listSelect = {
   id: true, number: true, status: true, priority: true, reportedFault: true, receivedAt: true, updatedAt: true,
-  device: { select: { id: true, model: true, serialNo: true } },
+  device: { select: { id: true, kind: true, model: true, serialNo: true } },
   customer: { select: { id: true, name: true } },
   site: { select: { id: true, name: true } },
   assignee: { select: { id: true, fullName: true } },
@@ -60,7 +60,7 @@ export class JobsController {
       select: {
         ...listSelect,
         workNote: true, unrepairableReason: true, qcPassedAt: true, dispatchedAt: true,
-        device: { select: { id: true, model: true, serialNo: true, hashrateTh: true, qrCode: true } },
+        device: { select: { id: true, kind: true, model: true, serialNo: true, hashrateTh: true, qrCode: true } },
         customer: { select: { id: true, name: true, contactName: true, email: true, phone: true } },
         events: { select: { id: true, fromStatus: true, toStatus: true, actorId: true, note: true, createdAt: true }, orderBy: { id: 'asc' } },
       },

@@ -62,7 +62,7 @@ export class CustomersController {
       where: { id: parse(uuid, id) },
       select: {
         ...detail,
-        devices: { select: { id: true, model: true, serialNo: true, qrCode: true }, orderBy: { createdAt: 'desc' }, take: 50 },
+        devices: { select: { id: true, kind: true, model: true, serialNo: true, qrCode: true }, orderBy: { createdAt: 'desc' }, take: 50 },
       },
     });
     if (!c) throw notFound('Customer');

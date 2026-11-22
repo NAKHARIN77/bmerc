@@ -114,7 +114,7 @@ a{color:var(--accent)}
 <tr><td>ลูกค้า</td><td><code>Customer</code></td><td>เจ้าของเครื่องขุด เช่น ฟาร์มขุด ที่ส่งเครื่องหรือบอร์ดมาซ่อมที่ศูนย์ <b>ไม่มีบัญชีและเข้าระบบไม่ได้</b> เป็นแค่ข้อมูลที่บริษัทบันทึกไว้</td></tr>
 <tr><td>ไซต์</td><td><code>Site</code></td><td>สาขาของศูนย์ซ่อม มีทีมช่างและสต็อกอะไหล่ของตัวเอง ไม่ผูกกับลูกค้า เพราะไม่มีการออกไปซ่อมนอกสถานที่</td></tr>
 <tr><td>ทีม</td><td><code>Team</code></td><td>กลุ่มช่างประจำไซต์ มีหัวหน้าช่าง 1 คน</td></tr>
-<tr><td>เครื่อง</td><td><code>Device</code></td><td>เครื่องขุด 1 เครื่อง ระบุด้วย serial และรหัส QR เก็บประวัติซ่อมทุกครั้ง</td></tr>
+<tr><td>เครื่อง</td><td><code>Device</code></td><td>ของที่ลูกค้าส่งมาซ่อม 1 ชิ้น อาจเป็นเครื่องขุดทั้งเครื่อง หรือบอร์ดเดี่ยว (hashboard, control board) หรือ PSU ระบุด้วยประเภท + serial และรหัส QR เก็บประวัติซ่อมทุกครั้ง</td></tr>
 <tr><td>งานซ่อม</td><td><code>Job</code></td><td>ใบงาน 1 ใบต่อการรับเครื่อง 1 ครั้ง เลขรูปแบบ <code>TK-2026-0113</code></td></tr>
 <tr><td>อะไหล่</td><td><code>Part</code></td><td>รายการอะไหล่ในแคตตาล็อกของบริษัท เช่น ชิป BM1398</td></tr>
 </tbody></table></div>
@@ -247,10 +247,10 @@ erDiagram
 <tr><td><code>sites</code></td><td>name, country, province, address, status <span class="pill info">setup / active / inactive</span></td><td>สาขาของศูนย์ซ่อม</td></tr>
 <tr><td><code>site_managers</code></td><td>user_id, site_id</td><td>ไซต์ที่ผู้จัดการไซต์ดูแล PK (user_id, site_id)</td></tr>
 <tr><td><code>teams</code></td><td>site_id, name, head_user_id</td><td></td></tr>
-<tr><td><code>devices</code></td><td>customer_id, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, serial_no)</td></tr>
+<tr><td><code>devices</code></td><td>customer_id, kind <span class="pill info">miner / hashboard / control_board / psu / other</span>, model, serial_no, hashrate_th, qr_code (unique)</td><td>unique (company_id, kind, serial_no)</td></tr>
 <tr><td><code>jobs</code></td><td>number, device_id, customer_id, site_id, assignee_id, status, priority, reported_fault, work_note, unrepairable_reason, received_at, qc_passed_at, dispatched_at</td><td>เลขใบงานเรียงต่อกันในแต่ละบริษัท</td></tr>
 <tr><td><code>job_events</code></td><td>job_id, from_status, to_status, actor_id, note, created_at</td><td>ใช้แสดง timeline ในหน้ารายละเอียดงาน</td></tr>
-<tr><td><code>job_components</code></td><td>job_id, component, work_done, result <span class="pill info">repaired / replaced / unchanged</span></td><td>ตาราง "Component / Work done" ในหน้าประวัติเครื่อง</td></tr>
+<tr><td><code>job_components</code></td><td>job_id, component, serial_no, replacement_serial_no, work_done, result <span class="pill info">repaired / replaced / unchanged</span></td><td>ตาราง "Component / Work done" ในหน้าประวัติเครื่อง</td></tr>
 <tr><td><code>parts</code></td><td>sku, name, category, unit, min_qty, is_active</td><td>unique (company_id, sku)</td></tr>
 <tr><td><code>site_stock</code></td><td>site_id, part_id, qty</td><td>ยอดคงเหลือ PK (site_id, part_id) มี CHECK qty ≥ 0</td></tr>
 <tr><td><code>stock_movements</code></td><td>site_id, part_id, type <span class="pill info">in / out / adjust</span>, qty (+/−), job_id, reason, actor_id</td><td>สมุดบัญชีสต็อก เพิ่มได้อย่างเดียว</td></tr>
@@ -313,6 +313,7 @@ stateDiagram-v2
 <li>เจ้าของแพลตฟอร์มกด Suspend หรือ Activate เองได้ และทุกครั้งต้องลง audit log</li>
 </ul>
 <h3>QR และประวัติเครื่อง</h3>
+<p>ลูกค้าส่งได้ทั้งเครื่องทั้งตัวและบอร์ดเดี่ยว ตอนรับของต้องเลือกประเภท (ทั้งเครื่อง / hashboard / control board / PSU / อื่น ๆ) เวลาซ่อมเครื่องทั้งตัวแล้วซ่อมหรือเปลี่ยนบอร์ด ให้บันทึก serial ของบอร์ดใน <code>job_components</code> (ถ้าเปลี่ยนบอร์ด ให้บันทึก serial ของบอร์ดใหม่ด้วย) ตอนค้นประวัติด้วย serial ต้องค้นทั้ง <code>devices.serial_no</code> และ serial ใน <code>job_components</code> ถ้าบอร์ดเคยซ่อมตอนอยู่ในเครื่อง แล้วภายหลังลูกค้าส่งมาเดี่ยว ๆ จะได้เห็นประวัติเดิม</p>
 <ul>
 <li>รหัส QR สุ่มแบบเดาไม่ได้ เช่น <code>BMERC-7K3QX9MD</code> ไม่ใช้เลขเรียง เพื่อไม่ให้คนอื่นไล่เดาดูข้อมูลได้</li>
 <li>สร้างรหัสครั้งเดียวต่อเครื่อง เมื่องานแรกของเครื่องผ่าน QC งานถัดไปใช้รหัสเดิม</li>
@@ -386,6 +387,7 @@ stateDiagram-v2
 <h3>ตัดสินใจแล้ว (22 พ.ย. 2026)</h3>
 <ul>
 <li><b>ไซต์ (Q1):</b> ไซต์คือสาขาของศูนย์ซ่อม ลูกค้าส่งเครื่องมาเอง ไม่มีการออกไปซ่อมนอกสถานที่ จึงลบ <code>sites.customer_id</code> ออก ลูกค้าผูกกับงานซ่อมและเครื่องแทน</li>
+<li><b>ของที่รับเข้า:</b> ลูกค้าส่งได้ทั้งเครื่องทั้งตัวและบอร์ดเดี่ยว จึงเพิ่ม <code>devices.kind</code> และ serial ของบอร์ดใน <code>job_components</code> เพื่อให้ค้นประวัติด้วย serial ได้ทั้งสองแบบ</li>
 <li><b>ลูกค้า:</b> ไม่มีบัญชีและเข้าเว็บไม่ได้ ผู้ใช้ระบบมีแค่เจ้าของระบบ และพนักงานของบริษัท (แอดมิน ผู้จัดการไซต์ หัวหน้าช่าง ช่าง คนคุมสต็อก)</li>
 <li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>site_managers</code> คนเดียวดูแลได้หลายไซต์</li>
 <li><b>ค่าซ่อม:</b> ใช้ตาราง <code>job_invoices</code>, <code>job_invoice_lines</code> และ <code>job_payments</code> แยกจากใบแจ้งหนี้ค่าแพ็กเกจ</li>
