@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bmerc
+          POSTGRES_PASSWORD: bmerc_dev
+          POSTGRES_DB: bmerc
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bmerc"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      # CI-only credentials for the throwaway database above.
+      DATABASE_URL: postgresql://bmerc_app:bmerc_app_dev@localhost:5432/bmerc?schema=public
+      MIGRATE_DATABASE_URL: postgresql://bmerc:bmerc_dev@localhost:5432/bmerc?schema=public
+      JWT_ACCESS_SECRET: ci-only-secret-0123456789abcdef
+      WEB_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Same as docker/postgres-init: the runtime login role that RLS applies to.
+      - name: Create app role
+        run: PGPASSWORD=bmerc_dev psql -h localhost -U bmerc -d bmerc -c "CREATE ROLE bmerc_app LOGIN PASSWORD 'bmerc_app_dev'"
+      - name: Migrate
+        working-directory: apps/api
+        run: npx prisma migrate deploy
+      - name: Lint
+        working-directory: apps/api
+        run: npm run lint
+      - name: Typecheck
+        working-directory: apps/api
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Unit tests
+        working-directory: apps/api
+        run: npm test
+      - name: Seed demo data
+        working-directory: apps/api
+        run: npm run db:seed
+      - name: E2E tests (RLS, auth, access scope)
+        working-directory: apps/api
+        run: npm run test:e2e
+      - name: Build
+        working-directory: apps/api
+        run: npm run build
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          MIGRATE_DATABASE_URL: postgresql://unused@localhost/unused # prisma generate (api postinstall) reads it
+      - run: npm run lint -w @bmerc/web
+      - run: npm run build -w @bmerc/web
