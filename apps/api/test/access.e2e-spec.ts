@@ -32,6 +32,7 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
   const get = (who: string, path: string) => http().get(`/api/v1${path}`).set(auth(who));
   const post = (who: string, path: string, body?: object) => http().post(`/api/v1${path}`).set(auth(who)).send(body);
   const patch = (who: string, path: string, body: object) => http().patch(`/api/v1${path}`).set(auth(who)).send(body);
+  const put = (who: string, path: string, body: object) => http().put(`/api/v1${path}`).set(auth(who)).send(body);
   const lastToken = (to: string, path: string) => {
     const m = [...mail.sent].reverse().find((x) => x.to === to);
     const link = m?.text.match(new RegExp(`${path}\\?token=([\\w%-]+)`));
@@ -217,6 +218,16 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
       const emails = list.map((u) => u.email);
       expect(emails).toContain('tech2@siamhash.demo');
       expect(emails).not.toContain('tech@siamhash.demo');
+    });
+
+    it('a site manager also sees technicians without a team, so they can add them to one', async () => {
+      const email = `free-${tag}@x.demo`;
+      const r = await post('admin@siamhash.demo', '/users', { email, fullName: 'Free Tech', role: 'technician', teamId: alphaId }).expect(201);
+      created.push(r.body.id);
+      const alpha = (await get('admin@siamhash.demo', `/teams/${alphaId}`).expect(200)).body as { members: Array<{ id: string }> };
+      await put('admin@siamhash.demo', `/teams/${alphaId}/members`, { userIds: alpha.members.map((m) => m.id).filter((id) => id !== r.body.id) }).expect(200);
+      const list = (await get('manager@siamhash.demo', '/users').expect(200)).body as Array<{ email: string }>;
+      expect(list.map((u) => u.email)).toContain(email);
     });
   });
 

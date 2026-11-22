@@ -223,3 +223,55 @@ export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => v
     </Card>
   );
 }
+
+// ───── List helpers ─────
+
+/** Previous / next for paged lists ({ items, page, limit, total } from the API). */
+export function Pager({ page, limit, total, onPage }: { page: number; limit: number; total: number; onPage: (page: number) => void }) {
+  const pages = Math.max(1, Math.ceil(total / limit));
+  if (total <= limit) return <p className="mt-3 text-xs text-muted">{total === 1 ? "1 result" : `${total} results`}</p>;
+  const from = (page - 1) * limit + 1;
+  const to = Math.min(total, page * limit);
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 text-sm text-muted">
+      <span>
+        {from}–{to} of {total}
+      </span>
+      <div className="flex gap-2">
+        <Button variant="secondary" className="h-8" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          Previous
+        </Button>
+        <Button variant="secondary" className="h-8" disabled={page >= pages} onClick={() => onPage(page + 1)}>
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Row of filters above a list. Wraps on narrow screens. */
+export const Toolbar = ({ children }: { children: ReactNode }) => <div className="mb-4 flex flex-wrap items-end gap-3 [&>*]:min-w-[180px] [&>*]:flex-1 md:[&>*]:max-w-[260px]">{children}</div>;
+
+/** Label / value pairs in a drawer or detail card. */
+export function DetailList({ rows }: { rows: Array<[string, ReactNode]> }) {
+  return (
+    <dl className="mb-5 grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-muted">{k}</dt>
+          <dd className="break-words text-ink">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A block of free text (fault description, notes). */
+export function Note({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mb-3 rounded-lg bg-field p-3 text-sm">
+      <div className="mb-1 text-xs font-medium text-muted">{title}</div>
+      <div className="whitespace-pre-wrap text-ink">{children}</div>
+    </div>
+  );
+}

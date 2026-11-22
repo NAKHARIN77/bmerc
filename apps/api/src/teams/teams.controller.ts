@@ -117,6 +117,9 @@ export class TeamsController {
       if (removed.length) await tx.user.updateMany({ where: { id: { in: removed }, companyId: me.companyId! }, data: { teamId: null } });
       if (userIds.length) await tx.user.updateMany({ where: { id: { in: userIds }, companyId: me.companyId! }, data: { teamId: id } });
       if (team.headUserId && !userIds.includes(team.headUserId)) await tx.team.update({ where: { id }, data: { headUserId: null } });
+      // Someone who headed their old team stops heading it when they move here.
+      const movedIn = users.filter((u) => u.teamId && u.teamId !== id).map((u) => u.id);
+      if (movedIn.length) await tx.team.updateMany({ where: { headUserId: { in: movedIn }, id: { not: id } }, data: { headUserId: null } });
     });
     await this.audit.log({
       companyId: me.companyId, actorUserId: me.id, action: 'team.members_set', entityType: 'team', entityId: id,

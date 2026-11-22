@@ -30,27 +30,33 @@ export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
 export const DEVICE_KINDS = ['miner', 'hashboard', 'control_board', 'psu', 'other'] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
 
-// ISO 3166-1 alpha-2 codes that Intl names but that are not countries (EU, UN, pseudo-regions).
-const NOT_COUNTRIES = new Set(['EU', 'EZ', 'QO', 'UN', 'XA', 'XB', 'ZZ']);
+export const DEVICE_KIND_LABEL: Record<DeviceKind, string> = {
+  miner: 'Whole miner',
+  hashboard: 'Hashboard',
+  control_board: 'Control board',
+  psu: 'PSU',
+  other: 'Other',
+};
+
+export const JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export type JobPriority = (typeof JOB_PRIORITIES)[number];
+
+export const SITE_STATUSES = ['setup', 'active', 'inactive'] as const;
+export type SiteStatus = (typeof SITE_STATUSES)[number];
+export const SITE_STATUS_LABEL: Record<SiteStatus, string> = { setup: 'Setting up', active: 'Active', inactive: 'Inactive' };
+
+export { COUNTRIES } from './countries';
+import { COUNTRIES } from './countries';
+
 let countryList: { code: string; name: string }[] | null = null;
 
-/** Every country Intl can name, sorted by English name. Built once, from the runtime's ICU data. */
+/** Every country, sorted by English name. A fixed list, so server and browser render the same names. */
 export function countries(): { code: string; name: string }[] {
-  if (countryList) return countryList;
-  const names = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
-  const list: { code: string; name: string }[] = [];
-  for (let i = 0; i < 26; i++) {
-    for (let j = 0; j < 26; j++) {
-      const code = String.fromCharCode(65 + i, 65 + j);
-      const name = names.of(code);
-      if (name && !NOT_COUNTRIES.has(code)) list.push({ code, name });
-    }
-  }
-  countryList = list.sort((a, b) => a.name.localeCompare(b.name));
+  countryList ??= COUNTRIES.map(([code, name]) => ({ code, name }));
   return countryList;
 }
 
-export const isCountry = (code: string) => countries().some((c) => c.code === code);
+export const isCountry = (code: string) => COUNTRIES.some(([c]) => c === code);
 export const isCurrency = (code: string) => Intl.supportedValuesOf('currency').includes(code);
 
 /** Plan prices are one USD price for every country (decided 2026-11-23). */

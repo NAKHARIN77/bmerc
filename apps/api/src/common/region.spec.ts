@@ -7,6 +7,9 @@ describe('region helpers', () => {
     expect(isCountry('EU')).toBe(false);
     expect(isCountry('th')).toBe(false);
     expect(isCountry('QQ')).toBe(false);
+    expect(isCountry('BU')).toBe(false); // retired: now MM
+    expect(isCountry('IC')).toBe(false);
+    expect(isCountry('XK')).toBe(true);
   });
 
   it('accepts ISO currency codes', () => {

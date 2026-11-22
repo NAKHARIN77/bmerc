@@ -1,4 +1,4 @@
-import type { Role } from "@bmerc/shared";
+import type { DeviceKind, JobPriority, JobStatus, Role } from "@bmerc/shared";
 
 export interface Me {
   id: string;
@@ -62,4 +62,63 @@ export interface Usage {
   users: { used: number; limit: number | null };
   sites: { used: number; limit: number | null };
   jobsThisMonth: { used: number; limit: number | null };
+}
+
+export interface JobRow {
+  id: string;
+  number: string;
+  status: JobStatus;
+  priority: JobPriority;
+  reportedFault: string | null;
+  receivedAt: string;
+  updatedAt: string;
+  device: { id: string; kind: DeviceKind; model: string; serialNo: string };
+  customer: { id: string; name: string };
+  site: { id: string; name: string };
+  assignee: { id: string; fullName: string } | null;
+}
+
+export interface JobDetail extends JobRow {
+  workNote: string | null;
+  unrepairableReason: string | null;
+  qcPassedAt: string | null;
+  dispatchedAt: string | null;
+  device: JobRow["device"] & { hashrateTh: string | number | null; qrCode: string | null };
+  customer: { id: string; name: string; contactName: string | null; email: string | null; phone: string | null };
+  events: Array<{ id: string; fromStatus: JobStatus | null; toStatus: JobStatus; actorId: string | null; note: string | null; createdAt: string }>;
+}
+
+export interface CustomerRow {
+  id: string;
+  name: string;
+  country: string | null;
+  devices: number;
+  openJobs: number;
+}
+
+export interface CustomerDetail {
+  id: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  createdAt: string;
+  devices: Array<{ id: string; kind: DeviceKind; model: string; serialNo: string; qrCode: string | null }>;
+}
+
+export interface PartRow {
+  id: string;
+  sku: string;
+  name: string;
+  category: string | null;
+  unit: string;
+  minQty: number;
+  isActive: boolean;
+  totalQty: number;
+  belowMin: boolean;
+}
+
+export interface PartDetail extends Omit<PartRow, "totalQty" | "belowMin"> {
+  stock: Array<{ site: { id: string; name: string }; qty: number; belowMin: boolean }>;
 }

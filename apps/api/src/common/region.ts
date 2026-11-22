@@ -1,12 +1,22 @@
 // Country, currency and tax helpers. The web app has the same lists in @bmerc/shared;
 // the API keeps its own copy because it runs compiled JS and cannot import that package's TS source.
 
-const NOT_COUNTRIES = new Set(['EU', 'EZ', 'QO', 'UN', 'XA', 'XB', 'ZZ']);
+// Same rules as packages/shared/src/countries.ts: no EU/UN groupings, pseudo-regions or ICU-only areas.
+const NOT_COUNTRIES = new Set(['EU', 'EZ', 'QO', 'UN', 'XA', 'XB', 'ZZ', 'AC', 'CP', 'CQ', 'DG', 'EA', 'IC', 'TA']);
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 
 /** ISO 3166-1 alpha-2 country code that Intl can name. */
-export const isCountry = (code: string) => /^[A-Z]{2}$/.test(code) && !NOT_COUNTRIES.has(code) && !!regionNames.of(code);
+/** Retired codes such as BU (Burma) canonicalise to their replacement, so they fail this check. */
+const isCurrentCode = (code: string) => {
+  try {
+    return Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`;
+  } catch {
+    return false;
+  }
+};
+export const isCountry = (code: string) =>
+  /^[A-Z]{2}$/.test(code) && !NOT_COUNTRIES.has(code) && !!regionNames.of(code) && isCurrentCode(code);
 /** ISO 4217 currency code. */
 export const isCurrency = (code: string) => currencies.has(code);
 

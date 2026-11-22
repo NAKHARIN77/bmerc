@@ -1,5 +1,20 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
+
+// Plain-English field errors for the web forms (zod's defaults read like "Too small: expected string to have >=2 characters").
+// A message given in a schema still wins over these.
+z.config({
+  customError: (issue) => {
+    const n = Number('minimum' in issue ? issue.minimum : 'maximum' in issue ? issue.maximum : 0);
+    if (issue.code === 'too_small' && issue.origin === 'string') return n <= 1 ? 'Required' : `At least ${n} characters`;
+    if (issue.code === 'too_big' && issue.origin === 'string') return `At most ${n} characters`;
+    if (issue.code === 'too_small' && issue.origin === 'number') return `Must be ${n} or more`;
+    if (issue.code === 'too_big' && issue.origin === 'number') return `Must be ${n} or less`;
+    if (issue.code === 'invalid_format' && issue.format === 'email') return 'Enter a valid email address';
+    if (issue.code === 'invalid_type' && issue.input === undefined) return 'Required';
+    return undefined; // keep zod's message
+  },
+});
 
 /** Shared error shape: { code, message, details } (design doc section 8). */
 export class ApiError extends HttpException {

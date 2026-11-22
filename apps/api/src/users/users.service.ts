@@ -48,7 +48,13 @@ export class UsersService {
         db.team.findMany({ where: { siteId: { in: me.siteIds } }, select: { id: true } }),
         db.userSite.findMany({ where: { siteId: { in: me.siteIds } }, select: { userId: true } }),
       ]);
-      where.OR = [{ teamId: { in: teams.map((t) => t.id) } }, { id: { in: links.map((l) => l.userId) } }, { id: me.id }];
+      where.OR = [
+        { teamId: { in: teams.map((t) => t.id) } },
+        { id: { in: links.map((l) => l.userId) } },
+        { id: me.id },
+        // Technicians without a team: a site manager may add them to a team (see teams setMembers), so they must be listed.
+        { teamId: null, role: { in: [...TEAM_ROLES] }, isActive: true },
+      ];
     }
     const users = await prisma.user.findMany({ where, select: PUBLIC_FIELDS, orderBy: { createdAt: 'asc' } });
     return this.decorate(me, users);

@@ -1,13 +1,14 @@
 "use client";
 
-import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
+import type { JobStatus } from "@bmerc/shared";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtDate, fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { Page, Usage } from "@/lib/types";
-import { Card, Chip, ErrorState, Kpi, Loading, PageHeader, Table } from "@/components/ui";
+import { StatusChip } from "@/components/chips";
+import { Card, ErrorState, Kpi, Loading, PageHeader, Table } from "@/components/ui";
 
 interface JobRow {
   id: string;
@@ -21,19 +22,6 @@ interface JobRow {
 }
 
 const OPEN: JobStatus[] = ["todo", "in_repair", "waiting_parts", "unrepairable"];
-const STATUS_TONE: Record<JobStatus, "info" | "success" | "warn" | "danger" | "neutral" | "navy"> = {
-  todo: "info",
-  in_repair: "success",
-  waiting_parts: "warn",
-  unrepairable: "danger",
-  qc_passed: "neutral",
-  dispatched: "neutral",
-};
-
-export function StatusChip({ status }: { status: JobStatus }) {
-  return <Chip tone={STATUS_TONE[status]}>{JOB_STATUS_LABEL[status]}</Chip>;
-}
-
 export function Dashboard() {
   const { me, can } = useSession();
 

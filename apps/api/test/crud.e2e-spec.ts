@@ -194,6 +194,16 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       expect(r.body.members.map((m: { id: string }) => m.id)).toContain(headId);
     });
 
+    it('moving the head into another team clears the head of their old team', async () => {
+      const other = (await post('manager@siamhash.demo', '/teams', { siteId: chonburi, name: `Day ${tag}` }).expect(201)).body.id;
+      made.teams.push(other);
+      await put('manager@siamhash.demo', `/teams/${other}/members`, { userIds: [headId] }).expect(200);
+      expect((await get('manager@siamhash.demo', `/teams/${teamId}`).expect(200)).body.headUserId).toBeNull();
+      const r = await patch('manager@siamhash.demo', `/teams/${other}`, { headUserId: headId }).expect(200);
+      expect(r.body.headUserId).toBe(headId);
+      await put('manager@siamhash.demo', `/teams/${other}/members`, { userIds: [] }).expect(200);
+    });
+
     it('only an admin can move a team to another site', async () => {
       await patch('manager@siamhash.demo', `/teams/${teamId}`, { siteId: bangkok }).expect(403);
     });
