@@ -21,15 +21,19 @@ describe('Auth (e2e)', () => {
   });
   afterAll(() => app.close());
 
-  it('a new company starts on the Basic plan', async () => {
+  it('a new company starts on the Basic plan, in the currency of its country', async () => {
     const email = `signup-${Date.now()}@new.demo`;
-    const r = await http().post('/api/v1/auth/register').send({ companyName: 'Signup Test Co', fullName: 'New Admin', email, password: 'Signup-1234' }).expect(201);
+    const body = { companyName: 'Signup Test Co', fullName: 'New Admin', email, password: 'Signup-1234' };
+    const noCountry = await http().post('/api/v1/auth/register').send(body).expect(400);
+    expect(noCountry.body.details.map((d: { path: string[] }) => d.path[0])).toContain('country');
+    const r = await http().post('/api/v1/auth/register').send({ ...body, country: 'VN' }).expect(201);
     const me = await http().get('/api/v1/me').set('Authorization', `Bearer ${r.body.accessToken}`).expect(200);
     expect(me.body).toMatchObject({ role: 'company_admin', company: { name: 'Signup Test Co', status: 'active', subscription: { status: 'active', plan: { code: 'basic' } } } });
 
     const owner = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.MIGRATE_DATABASE_URL }) });
     try {
       const companyId = me.body.companyId as string;
+      expect(await owner.company.findUnique({ where: { id: companyId } })).toMatchObject({ country: 'VN', currency: 'VND', taxRateBps: 0 });
       await owner.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
       await owner.auditLog.deleteMany({ where: { companyId } });
       await owner.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');

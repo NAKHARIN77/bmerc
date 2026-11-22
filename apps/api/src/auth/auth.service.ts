@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { MailService, webLink } from '../mail/mail.service.js';
 import { ApiError, conflict } from '../common/http.js';
 import { RateLimiter } from '../common/rate-limit.js';
+import { defaultCurrency } from '../common/region.js';
 import type { UserTokenType } from '../generated/prisma/enums.js';
 import { hashToken, newRefreshToken, REFRESH_TTL_DAYS, signAccessToken } from './tokens.js';
 
@@ -43,7 +44,7 @@ export class AuthService {
     return argon2.hash(password, { type: argon2.argon2id });
   }
 
-  async register(input: { companyName: string; fullName: string; email: string; password: string }, ip?: string) {
+  async register(input: { companyName: string; country: string; fullName: string; email: string; password: string }, ip?: string) {
     const email = input.email.toLowerCase();
     if (await this.prisma.user.findUnique({ where: { email } })) {
       throw conflict('EMAIL_TAKEN', 'This email is already registered');
@@ -57,7 +58,9 @@ export class AuthService {
     const passwordHash = await this.hash(input.password);
 
     const user = await this.prisma.$transaction(async (tx) => {
-      const company = await tx.company.create({ data: { name: input.companyName, billingEmail: email } });
+      const company = await tx.company.create({
+        data: { name: input.companyName, country: input.country, currency: defaultCurrency(input.country), billingEmail: email },
+      });
       await tx.subscription.create({
         data: { companyId: company.id, planId: basic.id, status: 'active', currentPeriodStart: now, currentPeriodEnd: end },
       });

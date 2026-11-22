@@ -49,6 +49,9 @@ model Company {
   billingEmail   String?       @map("billing_email")
   billingAddress String?       @map("billing_address")
   timezone       String        @default("Asia/Bangkok")
+  country        String? // ISO 3166-1 alpha-2; decides the VAT on plan invoices. Required at signup.
+  currency       String        @default("USD") // ISO 4217, for repair invoices to the company's own customers
+  taxRateBps     Int           @default(0) @map("tax_rate_bps") // tax on repair invoices, basis points (700 = 7%)
   status         CompanyStatus @default(active)
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
@@ -107,6 +110,7 @@ model Invoice {
   periodStart    DateTime      @map("period_start")
   periodEnd      DateTime      @map("period_end")
   amountCents    Int           @map("amount_cents")
+  taxRateBps     Int           @default(0) @map("tax_rate_bps") // VAT rate used, by company country
   taxCents       Int           @default(0) @map("tax_cents")
   currency       String        @default("USD")
   status         InvoiceStatus @default(open) // never delete; void instead
@@ -413,7 +417,8 @@ model JobInvoice {
   companyId     String           @map("company_id") @db.Uuid
   jobId         String           @unique @map("job_id") @db.Uuid
   number        String // RI-2026-0042, sequential per company via counters (key rinv:2026)
-  currency      String           @default("THB")
+  currency      String // copied from the company when the invoice is created
+  taxRateBps    Int              @default(0) @map("tax_rate_bps") // copied from the company
   subtotalCents Int              @map("subtotal_cents")
   taxCents      Int              @default(0) @map("tax_cents")
   totalCents    Int              @map("total_cents")

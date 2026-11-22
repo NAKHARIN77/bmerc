@@ -78,7 +78,7 @@ describe('Row-Level Security between companies', () => {
     });
     const invoice = await owner.jobInvoice.create({
       data: {
-        companyId: b, jobId: job.id, number: `RI-${tag}`, subtotalCents: 50000, totalCents: 50000,
+        companyId: b, jobId: job.id, number: `RI-${tag}`, currency: 'THB', subtotalCents: 50000, totalCents: 50000,
         lines: { create: [{ companyId: b, kind: 'labor', description: 'Hashboard repair', unitPriceCents: 50000, amountCents: 50000 }] },
       },
     });

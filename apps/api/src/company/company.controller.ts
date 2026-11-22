@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { parse } from '../common/http.js';
 import { limitsFor, usageFor } from '../common/limits.js';
 import { changed } from '../common/diff.js';
+import { isCountry, isCurrency } from '../common/region.js';
 import { AllowSuspended, CurrentUser, Roles } from '../auth/decorators.js';
 import type { AuthUser } from '../auth/auth-user.js';
 
@@ -28,11 +29,15 @@ const CompanyPatch = z
     billingEmail: z.email().nullable().optional(),
     billingAddress: optionalText(500),
     timezone: z.string().max(64).refine(isTimeZone, 'Unknown time zone').optional(),
+    country: z.string({ error: 'Choose a country' }).refine(isCountry, 'Choose a country').optional(),
+    currency: z.string().refine(isCurrency, 'Unknown currency code').optional(),
+    taxRateBps: z.number().int().min(0, 'Between 0% and 100%').max(10_000, 'Between 0% and 100%').optional(),
   })
   .refine((b) => Object.keys(b).length > 0, 'Nothing to update');
 
 const select = {
   id: true, name: true, legalName: true, taxId: true, billingEmail: true, billingAddress: true, timezone: true,
+  country: true, currency: true, taxRateBps: true,
   status: true, createdAt: true,
 } as const;
 

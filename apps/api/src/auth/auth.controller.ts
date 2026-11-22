@@ -8,6 +8,7 @@ import { ACCESS_COOKIE } from './auth.guard.js';
 import { AllowSuspended, CurrentUser, Public } from './decorators.js';
 import { ACCESS_TTL_SECONDS } from './tokens.js';
 import type { AuthUser } from './auth-user.js';
+import { isCountry } from '../common/region.js';
 
 const REFRESH_COOKIE = 'bmerc_rt';
 /** Holds no secret: tells the web app's proxy that a session exists (the refresh cookie is only sent to /api/v1/auth). */
@@ -15,6 +16,7 @@ const SESSION_HINT_COOKIE = 'bmerc_session';
 const password = z.string().min(8, 'At least 8 characters').max(200);
 const RegisterBody = z.object({
   companyName: z.string().trim().min(2).max(200),
+  country: z.string({ error: 'Choose a country' }).refine(isCountry, 'Choose a country'),
   fullName: z.string().trim().min(2).max(200),
   email: z.email(),
   password,

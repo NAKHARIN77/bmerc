@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
-import { Alert, Button, Field, Input } from "@/components/ui";
+import { countries } from "@bmerc/shared";
+import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { AuthHeading, AuthLink, MIN_PASSWORD } from "../auth-form";
 
 export function RegisterForm() {
@@ -35,6 +36,20 @@ export function RegisterForm() {
       {error && <Alert>{error}</Alert>}
       <Field label="Company name" error={fields.companyName}>
         {(id) => <Input id={id} name="companyName" placeholder="e.g. Siam Hash Repair Co." required autoFocus />}
+      </Field>
+      <Field label="Country" error={fields.country} hint="Where your company is registered. Decides the tax on your plan invoices">
+        {(id) => (
+          <Select id={id} name="country" defaultValue="" required>
+            <option value="" disabled>
+              Choose a country…
+            </option>
+            {countries().map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </Field>
       <Field label="Your full name" error={fields.fullName}>
         {(id) => <Input id={id} name="fullName" autoComplete="name" required />}

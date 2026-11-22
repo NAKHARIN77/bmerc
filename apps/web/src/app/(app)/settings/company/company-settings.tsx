@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { countries, fmtTaxRate } from "@bmerc/shared";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
@@ -17,6 +18,9 @@ interface Company {
   billingEmail: string | null;
   billingAddress: string | null;
   timezone: string;
+  country: string | null;
+  currency: string;
+  taxRateBps: number;
 }
 
 const TEXT_FIELDS = ["legalName", "taxId", "billingEmail", "billingAddress"] as const;
@@ -35,6 +39,12 @@ export function CompanySettings() {
     return cur && !list.includes(cur) ? [cur, ...list] : list;
   }, [company.data?.timezone]);
 
+  const currencies = useMemo(() => {
+    const list = Intl.supportedValuesOf("currency");
+    const cur = company.data?.currency;
+    return cur && !list.includes(cur) ? [cur, ...list] : list;
+  }, [company.data?.currency]);
+
   if (!can("company_admin")) return <NoAccess />;
   if (company.error) return <ErrorState error={company.error} onRetry={company.reload} />;
   if (!company.data) return <Loading />;
@@ -43,8 +53,20 @@ export function CompanySettings() {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const body: Record<string, string | null> = { name: String(f.get("name") ?? ""), timezone: String(f.get("timezone") ?? "") };
+    const body: Record<string, string | number | null> = {
+      name: String(f.get("name") ?? ""),
+      timezone: String(f.get("timezone") ?? ""),
+      currency: String(f.get("currency") ?? ""),
+    };
     for (const k of TEXT_FIELDS) body[k] = String(f.get(k) ?? "").trim() || null; // empty clears the field
+    const country = String(f.get("country") ?? "");
+    if (country) body.country = country;
+    const rate = Number(String(f.get("taxRate") ?? "").trim() || "0");
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+      setFields({ taxRateBps: "Between 0% and 100%" });
+      return;
+    }
+    body.taxRateBps = Math.round(rate * 100); // percent in the form, basis points in the API
     setBusy(true);
     setNotice(null);
     setFields({});
@@ -82,6 +104,18 @@ export function CompanySettings() {
               <Field label="Billing email" error={fields.billingEmail}>
                 {(id) => <Input id={id} name="billingEmail" type="email" defaultValue={c.billingEmail ?? ""} />}
               </Field>
+              <Field label="Country" error={fields.country} hint="Decides the tax on your BMERC plan invoices">
+                {(id) => (
+                  <Select id={id} name="country" defaultValue={c.country ?? ""}>
+                    {!c.country && <option value="">Choose a country…</option>}
+                    {countries().map((x) => (
+                      <option key={x.code} value={x.code}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
               <Field label="Time zone" error={fields.timezone} hint="Used for dates on jobs and reports">
                 {(id) => (
                   <Select id={id} name="timezone" defaultValue={c.timezone}>
@@ -95,6 +129,27 @@ export function CompanySettings() {
             <Field label="Billing address" error={fields.billingAddress}>
               {(id) => <Textarea id={id} name="billingAddress" defaultValue={c.billingAddress ?? ""} />}
             </Field>
+            <h3 className="mb-1 mt-2 text-sm font-semibold text-navy">Repair invoices to your customers</h3>
+            <p className="mb-3 text-xs text-muted">
+              Used on new repair invoices. Invoices already issued keep the currency and rate they were made with. Now: {c.currency},{" "}
+              {fmtTaxRate(c.taxRateBps)}.
+            </p>
+            <div className="grid gap-x-5 md:grid-cols-2">
+              <Field label="Currency" error={fields.currency}>
+                {(id) => (
+                  <Select id={id} name="currency" defaultValue={c.currency}>
+                    {currencies.map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field label="Tax rate (%)" error={fields.taxRateBps} hint="0 if you do not charge tax">
+                {(id) => (
+                  <Input id={id} name="taxRate" type="number" min={0} max={100} step={0.01} inputMode="decimal" defaultValue={c.taxRateBps / 100} />
+                )}
+              </Field>
+            </div>
             <div className="flex justify-end">
               <Button type="submit" busy={busy}>
                 Save details

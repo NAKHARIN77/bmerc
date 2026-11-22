@@ -230,10 +230,10 @@ erDiagram
 <div class="tbl"><table>
 <thead><tr><th>ตาราง</th><th>คอลัมน์สำคัญ</th><th>หมายเหตุ</th></tr></thead>
 <tbody>
-<tr><td><code>companies</code></td><td>id, name, legal_name, tax_id, billing_email, billing_address, timezone, status <span class="pill info">active / suspended / closed</span></td><td>tenant หลัก</td></tr>
+<tr><td><code>companies</code></td><td>id, name, legal_name, tax_id, billing_email, billing_address, timezone, country (ISO 2 ตัว ต้องกรอกตอนสมัคร), currency และ tax_rate_bps (ใช้กับใบแจ้งหนี้ค่าซ่อม), status <span class="pill info">active / suspended / closed</span></td><td>tenant หลัก</td></tr>
 <tr><td><code>plans</code></td><td>code <span class="pill info">trial / basic / pro</span>, price_thb, max_jobs_per_month, max_sites, max_users, features (jsonb)</td><td>ค่า null = ไม่จำกัด</td></tr>
 <tr><td><code>subscriptions</code></td><td>company_id, plan_id, status <span class="pill info">trialing / active / past_due / suspended</span>, current_period_start/end, override_limits (jsonb)</td><td>override ใช้กับหน้า "Edit limits"</td></tr>
-<tr><td><code>invoices</code></td><td>company_id, number <code>INV-2026-011</code>, period, amount_thb, vat_thb, status <span class="pill info">open / paid / void</span>, due_at, paid_at, slip_url, slip_uploaded_at, confirmed_by_id</td><td>ห้ามลบ ให้ void แทน</td></tr>
+<tr><td><code>invoices</code></td><td>company_id, number <code>INV-2026-011</code>, period, amount_cents, tax_rate_bps, tax_cents, currency (USD), status <span class="pill info">open / paid / void</span>, due_at, paid_at, slip_url, slip_uploaded_at, confirmed_by_id</td><td>ห้ามลบ ให้ void แทน</td></tr>
 <tr><td><code>users</code></td><td>id, company_id (null สำหรับ platform admin), email, password_hash, full_name, role, team_id, is_active, is_platform_admin, last_login_at</td><td>อีเมลห้ามซ้ำทั้งระบบ</td></tr>
 <tr><td><code>refresh_tokens</code></td><td>user_id, token_hash, expires_at, revoked_at, user_agent</td><td>เปลี่ยน token ใหม่ทุกครั้งที่ refresh</td></tr>
 <tr><td><code>audit_logs</code></td><td>company_id, actor_user_id, action, entity_type, entity_id, before (jsonb), after (jsonb), ip, created_at</td><td>เพิ่มได้อย่างเดียว ห้ามแก้หรือลบ</td></tr>
@@ -256,7 +256,7 @@ erDiagram
 <tr><td><code>stock_movements</code></td><td>site_id, part_id, type <span class="pill info">in / out / adjust</span>, qty (+/−), job_id, reason, actor_id</td><td>สมุดบัญชีสต็อก เพิ่มได้อย่างเดียว</td></tr>
 <tr><td><code>job_parts</code></td><td>job_id, part_id, qty, movement_id</td><td>อะไหล่ที่ใช้ในงาน ผูกกับ movement</td></tr>
 <tr><td><code>qr_print_logs</code></td><td>job_id, printed_by, copies, printed_at</td><td>ใช้ในส่วน "Print history"</td></tr>
-<tr><td><code>job_invoices</code></td><td>job_id (unique), number <code>RI-2026-0042</code>, currency, subtotal_cents, tax_cents, total_cents, paid_cents, status <span class="pill info">unpaid / partial / paid / void</span>, issued_at, due_at, note</td><td>ใบแจ้งหนี้ค่าซ่อมที่เก็บจากลูกค้า แยกจาก <code>invoices</code> ที่เป็นค่าแพ็กเกจ ห้ามลบ ให้ void แทน</td></tr>
+<tr><td><code>job_invoices</code></td><td>job_id (unique), number <code>RI-2026-0042</code>, currency และ tax_rate_bps (คัดลอกจากบริษัทตอนออกใบ), subtotal_cents, tax_cents, total_cents, paid_cents, status <span class="pill info">unpaid / partial / paid / void</span>, issued_at, due_at, note</td><td>ใบแจ้งหนี้ค่าซ่อมที่เก็บจากลูกค้า แยกจาก <code>invoices</code> ที่เป็นค่าแพ็กเกจ ห้ามลบ ให้ void แทน</td></tr>
 <tr><td><code>job_invoice_lines</code></td><td>invoice_id, kind <span class="pill info">labor / part / other</span>, description, qty, unit_price_cents, amount_cents, job_part_id</td><td>รายการค่าแรงและค่าอะไหล่</td></tr>
 <tr><td><code>job_payments</code></td><td>invoice_id, method <span class="pill info">bank_transfer / cash / other</span>, amount_cents, paid_at, reference, slip_url, status <span class="pill info">pending / confirmed / rejected</span>, reviewed_by_id, reviewed_at, reject_reason</td><td>ชำระบางส่วนได้ ยอดที่ยืนยันแล้วรวมเป็น paid_cents</td></tr>
 <tr><td><code>counters</code></td><td>company_id, key (เช่น <code>job:2026</code>), value</td><td>ใช้ออกเลขใบงาน ล็อกแถวด้วย <code>FOR UPDATE</code></td></tr>
@@ -378,7 +378,7 @@ stateDiagram-v2
 <h2 id="questions">11. เรื่องที่ต้องตัดสินใจ</h2>
 <p>เจอข้อขัดกันหรือข้อที่ยังไม่ชัดในต้นแบบ ต้องตัดสินใจก่อนเริ่มสัปดาห์ 2</p>
 <ol class="qs" style="counter-reset:q 1"><!-- Q1 decided; keep the other numbers stable -->
-<li><b>ราคาแพ็กเกจ:</b> <i>VAT ตัดสินแล้ว (23 พ.ย. 2026): ราคาแพ็กเกจไม่รวม VAT และใบแจ้งหนี้แสดง VAT แยกบรรทัด</i> ยังเหลือ: ราคาจริงของแต่ละแพ็กเกจคือเท่าไร (หน้า Landing แสดง Pro ฿299/เดือน หน้า Pricing ยังเป็น [Price] ส่วนหน้า Revenue ตั้ง Basic ไว้ ฿1,500 ซึ่งแพงกว่า Pro) และใช้อัตรา VAT เท่าไร</li>
+<li><b>ราคาแพ็กเกจ:</b> <i>ตัดสินบางส่วนแล้ว (23 พ.ย. 2026): ราคาเดียวเป็น USD ทุกประเทศ ไม่รวม VAT และ VAT คิดตามประเทศของบริษัทลูกค้า</i> ยังเหลือ: ราคาจริงของแต่ละแพ็กเกจเป็น USD เท่าไร (ต้นแบบยังไม่ตรงกัน: Landing แสดง Pro ฿299/เดือน, Pricing เป็น [Price], Revenue ตั้ง Basic ไว้ ฿1,500) และอัตรา VAT ของแต่ละประเทศ ซึ่งต้องให้นักบัญชียืนยัน ตอนนี้ตั้งไว้ว่าไทย 7% ประเทศอื่น 0%</li>
 <li><b>โควตาเต็ม:</b> <i>ตัดสินแล้ว (23 พ.ย. 2026)</i> บล็อกไม่ให้เปิดใบงานใหม่ และแจ้งให้อัปเกรดแพ็กเกจ ไม่มีการคิดเงินส่วนเกิน</li>
 <li><b>ภาษาหน้าจอ:</b> <i>ตัดสินแล้ว (22 พ.ย. 2026)</i> เว็บใช้ภาษาอังกฤษทั้งหมด ต้นแบบมีฉบับเดียวคือภาษาอังกฤษ (เลิกใช้ฉบับไทยแล้ว 23 พ.ย. 2026)</li>
 <li><b>Hosting:</b> ทีมมี cloud ที่ใช้อยู่แล้วไหม (AWS, GCP, DigitalOcean)? ถ้ามีลูกค้าไทยเป็นหลัก แนะนำ region สิงคโปร์</li>
@@ -396,11 +396,13 @@ stateDiagram-v2
 <li><b>ลูกค้า:</b> ไม่มีบัญชีและเข้าเว็บไม่ได้ ผู้ใช้ระบบมีแค่เจ้าของระบบ และพนักงานของบริษัท (แอดมิน ผู้จัดการไซต์ หัวหน้าช่าง ช่าง คนคุมสต็อก)</li>
 <li><b>ผู้จัดการ:</b> ใช้บทบาท <code>site_manager</code> เห็นเฉพาะไซต์ที่ผูกใน <code>user_sites</code> คนเดียวดูแลได้หลายไซต์</li>
 <li><b>คนคุมสต็อก:</b> ผูกกับไซต์แบบเดียวกับผู้จัดการไซต์ เลือกได้ 1 ไซต์หรือหลายไซต์ รับเข้า เบิก และปรับยอดได้เฉพาะไซต์ที่ดูแล การโอนระหว่างไซต์ให้ต้นทางบันทึกโอนออก แล้วปลายทางกดรับของ แจ้งเตือนของใกล้หมดส่งให้คนคุมสต็อกของไซต์นั้นและแอดมิน</li>
-<li><b>VAT (Q2 บางส่วน, 23 พ.ย.):</b> ราคาแพ็กเกจไม่รวม VAT ใบแจ้งหนี้แสดงยอดก่อน VAT (<code>amount_thb</code>) และ VAT (<code>vat_thb</code>) แยกกัน</li>
+<li><b>ราคาและ VAT ค่าแพ็กเกจ (Q2 บางส่วน, 23 พ.ย.):</b> ราคาเดียวเป็น USD ทุกประเทศ ไม่รวม VAT ระบบคิด VAT ตาม <code>companies.country</code> และเก็บอัตราที่ใช้ไว้ในใบแจ้งหนี้ (<code>tax_rate_bps</code>) ใบแจ้งหนี้แสดงยอดก่อน VAT กับ VAT แยกกัน</li>
+<li><b>ใบแจ้งหนี้ค่าซ่อม (23 พ.ย.):</b> แต่ละบริษัทตั้งสกุลเงินและอัตราภาษีเองในหน้า Company settings ตอนสมัครระบบเสนอสกุลเงินท้องถิ่นตามประเทศให้ ใบที่ออกไปแล้วเก็บสกุลเงินและอัตราตอนออกไว้ ไม่เปลี่ยนตาม</li>
 <li><b>โควตาเต็ม (Q3, 23 พ.ย.):</b> บล็อกการสร้างใหม่ และแจ้งให้อัปเกรดแพ็กเกจ</li>
 <li><b>ใบกำกับภาษี (Q6, 23 พ.ย.):</b> ไม่ออก ใช้ใบแจ้งหนี้และใบเสร็จ</li>
 <li><b>ค่าซ่อม:</b> ใช้ตาราง <code>job_invoices</code>, <code>job_invoice_lines</code> และ <code>job_payments</code> แยกจากใบแจ้งหนี้ค่าแพ็กเกจ</li>
-<li><b>การรับชำระ:</b> เฟสแรกใช้โอนเงินแล้วแนบสลิป มีคนตรวจและกดยืนยัน ทั้งค่าซ่อมและค่าแพ็กเกจ ส่วนการตัดเงินอัตโนมัติผ่าน webhook ทำหลังเปิดขาย</li>
+<li><b>การรับชำระค่าแพ็กเกจ (แก้ 23 พ.ย.):</b> ใช้ตามต้นแบบ คือ PayPal, บัตรเครดิต/เดบิต (ยืนยันกับธนาคารด้วย 3-D Secure) และ Bitcoin เพราะมีลูกค้าต่างประเทศ ผลการจ่ายรับผ่าน webhook ของผู้ให้บริการ ยังต้องเลือกผู้ให้บริการ (ทำในข้อ 7) ช่อง slip_url ยังเก็บไว้สำหรับกรณีที่เจ้าของระบบกดยืนยันการจ่ายเอง</li>
+<li><b>การรับชำระค่าซ่อม:</b> ลูกค้าไม่มีบัญชีในระบบ พนักงานจึงบันทึกการจ่ายเองใน <code>job_payments</code> (โอน แนบสลิป หรือเงินสด) แล้วมีคนตรวจและกดยืนยัน</li>
 </ul>
 </main>
 </div>

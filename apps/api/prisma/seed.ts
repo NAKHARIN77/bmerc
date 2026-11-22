@@ -58,7 +58,8 @@ async function main() {
 
   // ── Main demo company: Siam Hash Repair Co. (Pro) ──
   const siam = await db.company.create({
-    data: { name: 'Siam Hash Repair Co.', legalName: 'Siam Hash Repair Co., Ltd.', taxId: '0105560000000', billingEmail: 'admin@siamhash.demo' },
+    data: { name: 'Siam Hash Repair Co.', legalName: 'Siam Hash Repair Co., Ltd.', taxId: '0105560000000', billingEmail: 'admin@siamhash.demo',
+      country: 'TH', currency: 'THB', taxRateBps: 700 },
   });
   await db.subscription.create({
     data: { companyId: siam.id, planId: pro.id, status: 'active', currentPeriodStart: periodStart, currentPeriodEnd: periodEnd },
@@ -172,7 +173,7 @@ async function main() {
     { name: 'North Miner Service', plan: basic.id, sub: 'suspended' as const, status: 'suspended' as const, email: 'admin@northminer.demo' },
   ];
   for (const o of others) {
-    const co = await db.company.create({ data: { name: o.name, billingEmail: o.email, status: o.status } });
+    const co = await db.company.create({ data: { name: o.name, billingEmail: o.email, status: o.status, country: 'TH', currency: 'THB' } });
     await db.subscription.create({ data: { companyId: co.id, planId: o.plan, status: o.sub, currentPeriodStart: periodStart, currentPeriodEnd: periodEnd } });
     await db.user.create({ data: { companyId: co.id, email: o.email, passwordHash, fullName: `${o.name} Admin`, role: 'company_admin' } });
     await db.customer.create({ data: { companyId: co.id, name: `${o.name.split(' ')[0]} Farm`, country: 'Thailand' } });
@@ -180,7 +181,7 @@ async function main() {
     if (o.plan === basic.id) {
       await db.invoice.create({
         data: {
-          companyId: co.id, number: `INV-2026-${co.id.slice(0, 4).toUpperCase()}`, periodStart, periodEnd, amountCents: 9900,
+          companyId: co.id, number: `INV-2026-${co.id.slice(0, 4).toUpperCase()}`, periodStart, periodEnd, amountCents: 9900, taxRateBps: 700, taxCents: 693,
           status: o.status === 'suspended' ? 'open' : 'paid', dueAt: daysAgo(o.status === 'suspended' ? 15 : -7),
           paidAt: o.status === 'suspended' ? null : daysAgo(2),
         },
@@ -188,7 +189,7 @@ async function main() {
     }
   }
   await db.invoice.create({
-    data: { companyId: C, number: 'INV-2026-0011', periodStart, periodEnd, amountCents: 29900, status: 'paid', dueAt: daysAgo(-7), paidAt: daysAgo(3), paymentRef: 'PayPal demo' },
+    data: { companyId: C, number: 'INV-2026-0011', periodStart, periodEnd, amountCents: 29900, taxRateBps: 700, taxCents: 2093, status: 'paid', dueAt: daysAgo(-7), paidAt: daysAgo(3), paymentRef: 'PayPal demo' },
   });
 
   console.log(`Seeded. All demo accounts use password: ${DEMO_PASSWORD}`);

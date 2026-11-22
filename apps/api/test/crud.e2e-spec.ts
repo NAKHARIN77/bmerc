@@ -58,7 +58,14 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       const r = await patch('admin@siamhash.demo', '/company', { billingAddress: `Test ${tag}`, timezone: 'Asia/Ho_Chi_Minh' }).expect(200);
       expect(r.body).toMatchObject({ billingAddress: `Test ${tag}`, timezone: 'Asia/Ho_Chi_Minh' });
       await patch('admin@siamhash.demo', '/company', { timezone: 'Mars/Olympus' }).expect(400);
-      await patch('admin@siamhash.demo', '/company', { billingAddress: before.billingAddress, timezone: before.timezone }).expect(200);
+      const money = await patch('admin@siamhash.demo', '/company', { country: 'MY', currency: 'MYR', taxRateBps: 800 }).expect(200);
+      expect(money.body).toMatchObject({ country: 'MY', currency: 'MYR', taxRateBps: 800 });
+      await patch('admin@siamhash.demo', '/company', { country: 'EU' }).expect(400);
+      await patch('admin@siamhash.demo', '/company', { currency: 'BAHT' }).expect(400);
+      await patch('admin@siamhash.demo', '/company', { taxRateBps: 10_001 }).expect(400);
+      await patch('admin@siamhash.demo', '/company', {
+        billingAddress: before.billingAddress, timezone: before.timezone, country: before.country, currency: before.currency, taxRateBps: before.taxRateBps,
+      }).expect(200);
     });
 
     it('only admins see company settings', async () => {
