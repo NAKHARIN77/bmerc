@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { ROLE_LABEL, ROLES, type Role } from "@bmerc/shared";
+import { ROLE_LABEL, type Role } from "@bmerc/shared";
 import { SessionProvider, useSession } from "@/lib/session";
 import { Icon, type IconName } from "./icons";
 import { Card } from "./ui";
@@ -13,21 +13,26 @@ interface NavItem {
   href: string;
   icon: IconName;
   roles: Role[] | "all";
+  /** Other pages that belong under this item (highlights it there). */
+  also?: string[];
 }
 
-// One "Main menu" group, as in the prototype. Each item shows only for the roles listed.
+// One "Main menu" group, as in the prototype: the company admin menu is Dashboard, Customers, Sites,
+// Subscription (Reports comes later); technicians get My jobs, Scan QR, My team. Jobs, teams, technicians
+// and stock open from the dashboard and the site detail tabs, as in the prototype.
+const ADMIN: Role[] = ["company_admin", "site_manager"];
+const BENCH: Role[] = ["head_technician", "technician"];
 const NAV: Array<{ group: string; items: NavItem[] }> = [
   {
     group: "Main menu",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all" },
-      { label: "Jobs", href: "/jobs", icon: "wrench", roles: [...ROLES] },
-      { label: "Customers", href: "/customers", icon: "users", roles: ["company_admin", "site_manager", "head_technician"] },
-      { label: "Sites", href: "/sites", icon: "pin", roles: ["company_admin", "site_manager", "stock_keeper"] },
-      { label: "Teams", href: "/teams", icon: "building", roles: ["company_admin", "site_manager", "head_technician"] },
-      { label: "Parts", href: "/parts", icon: "box", roles: [...ROLES] },
-      { label: "Users", href: "/users", icon: "users", roles: ["company_admin", "site_manager"] },
-      { label: "Company settings", href: "/settings/company", icon: "settings", roles: ["company_admin"] },
+      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices", "/job-cards"] },
+      { label: "My jobs", href: "/board", icon: "wrench", roles: BENCH, also: ["/jobs", "/devices", "/job-cards"] },
+      { label: "Scan QR", href: "/scan", icon: "qr", roles: [...BENCH, "stock_keeper"] },
+      { label: "My team", href: "/team", icon: "users", roles: BENCH },
+      { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
+      { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/users", "/stock", "/parts"] },
+      { label: "Subscription", href: "/settings/company", icon: "doc", roles: ["company_admin"] },
     ],
   },
 ];
@@ -49,7 +54,7 @@ function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [flipped, setFlipped] = useState(false);
 
-  const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
+  const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role)) || (me.isPlatformAdmin && i.href === "/dashboard");
   const who = me.isPlatformAdmin ? "Platform Owner" : me.role ? ROLE_LABEL[me.role] : "No role";
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
@@ -93,7 +98,7 @@ function Shell({ children }: { children: ReactNode }) {
             <div key={group}>
               <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{group}</div>
               {shown.map((i) => {
-                const active = pathname === i.href || pathname.startsWith(`${i.href}/`);
+                const active = [i.href, ...(i.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
                 return (
                   <Link
                     key={i.href}

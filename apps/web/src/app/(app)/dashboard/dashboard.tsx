@@ -2,14 +2,15 @@
 
 import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
-import { Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
+import { ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -19,6 +20,13 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
 
 export function Dashboard() {
   const { me, can } = useSession();
+  const router = useRouter();
+  const bench = can("head_technician", "technician");
+  // Technicians start on their bench board (the prototype's technician app has no dashboard).
+  useEffect(() => {
+    if (bench) router.replace("/board");
+  }, [bench, router]);
+  if (bench) return null;
 
   if (me.isPlatformAdmin) {
     return (
@@ -31,7 +39,23 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Overview" subtitle="Your repair center at a glance" />
+      <PageHeader
+        title="Overview"
+        subtitle="Your repair center at a glance"
+        actions={
+          can("company_admin", "site_manager") ? (
+            <>
+              <ButtonLink href="/job-cards" variant="secondary">
+                Technician job cards
+              </ButtonLink>
+              <ButtonLink href="/board" variant="secondary">
+                Bench board
+              </ButtonLink>
+              <ButtonLink href="/jobs/new">+ New ticket</ButtonLink>
+            </>
+          ) : undefined
+        }
+      />
       <Counts />
       <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
         <NeedsAttention />
@@ -61,8 +85,14 @@ function Counts() {
 /** Open jobs that need someone: urgent or high priority, waiting for parts, or cannot be repaired. */
 function NeedsAttention() {
   const jobs = useApi<Page<JobRow>>("/jobs?open=true&limit=100");
+  const [now] = useState(() => Date.now()); // when the page opened
+  const waited = (j: JobRow) => Math.floor((now - Date.parse(j.receivedAt)) / 86_400_000);
+  // A job nobody has taken for a day or more comes first, so it is not forgotten in the queue.
+  const queued = (j: JobRow) => j.status === "todo" && !j.assignee && waited(j) >= 1;
   const reason = (j: JobRow) =>
-    j.status === "unrepairable"
+    queued(j)
+      ? `NO TECHNICIAN FOR ${waited(j)} ${waited(j) === 1 ? "DAY" : "DAYS"}`
+      : j.status === "unrepairable"
       ? "Cannot repair"
       : j.priority === "urgent"
         ? "URGENT"
@@ -71,7 +101,10 @@ function NeedsAttention() {
           : j.status === "waiting_parts"
             ? "WAITING FOR PARTS"
             : null;
-  const list = (jobs.data?.items ?? []).filter((j) => reason(j)).slice(0, 5);
+  const list = (jobs.data?.items ?? [])
+    .filter((j) => reason(j))
+    .sort((a, b) => Number(queued(b)) - Number(queued(a)))
+    .slice(0, 5);
   return (
     <div>
       <b className="text-base">Needs attention</b>

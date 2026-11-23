@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, Site } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { StatusChip } from "@/components/chips";
-import { CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pager, Pills, SearchBar, Select, Table } from "@/components/ui";
+import { ButtonLink, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pager, Pills, SearchBar, Select, Table } from "@/components/ui";
 
 const LIMIT = 20;
 type Filter = "all" | JobStatus;
@@ -44,7 +44,11 @@ export function JobsPage() {
 
   return (
     <>
-      <PageHeader title="Jobs" subtitle={subtitle} />
+      <PageHeader
+        title="Jobs"
+        subtitle={subtitle}
+        actions={can("company_admin", "site_manager", "head_technician") ? <ButtonLink href="/jobs/new">+ New ticket</ButtonLink> : undefined}
+      />
       <KpiRow>
         <Kpi label="All jobs" value={s?.total ?? "—"} caption="Active and historic" />
         <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="Active bench diagnostics" tone="info" />

@@ -1,21 +1,31 @@
 "use client";
 
-import { type JobStatus } from "@bmerc/shared";
-import { useParams } from "next/navigation";
+import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
+import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
-import type { JobDetail } from "@/lib/types";
+import { useSession } from "@/lib/session";
+import { fmtDateTime } from "@/lib/format";
+import type { ComponentResult, JobDetail } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
-import { ButtonLink, Card, Chip, ErrorState, Facts, Loading, PageHeader, Table } from "@/components/ui";
+import { Alert, ButtonLink, Card, Chip, ErrorState, Facts, Loading, PageHeader, Table } from "@/components/ui";
 
 // Prototype timeline: ● for steps reached, ○ (muted) for the rest.
 const STEPS = ["Intake", "Diagnosis", "Repair", "QC test", "Ready for release"] as const;
 const REACHED: Record<JobStatus, number> = { todo: 1, in_repair: 2, waiting_parts: 2, unrepairable: 2, qc_passed: 4, dispatched: 5 };
-const RESULT: Record<JobDetail["components"][number]["result"], string> = { repaired: "Repaired", replaced: "Replaced", unchanged: "Not changed" };
+const RESULT: Record<ComponentResult, string> = { repaired: "Repaired", replaced: "Replaced", unchanged: "Not changed" };
 
+/** Job detail, as in the prototype. Status changes happen on the bench board; tests and parts on the test record page. */
 export function JobPage() {
   const { id } = useParams<{ id: string }>();
+  const { can } = useSession();
+  const received = useSearchParams().get("received");
   const job = useApi<JobDetail>(`/jobs/${id}`);
-  const back = (
+  const bench = can("head_technician", "technician");
+  const back = bench ? (
+    <ButtonLink href="/board" variant="secondary">
+      Back to board
+    </ButtonLink>
+  ) : (
     <ButtonLink href="/jobs" variant="secondary">
       Back to jobs
     </ButtonLink>
@@ -31,11 +41,30 @@ export function JobPage() {
   }
   if (!job.data) return <Loading />;
   const j = job.data;
-  const reached = REACHED[j.status];
+  const testable = j.can.work && (j.status === "in_repair" || j.status === "waiting_parts");
 
   return (
     <>
-      <PageHeader title={`Job ${j.number}`} subtitle={`${j.device.model} · ${j.customer.name} · ${j.site.name}`} actions={back} />
+      <PageHeader
+        title={`Job ${j.number}`}
+        subtitle={`${j.device.model} · ${j.customer.name} · ${j.site.name}`}
+        actions={
+          <>
+            {back}
+            {testable && (
+              <ButtonLink href={`/jobs/${j.id}/test`} variant="secondary">
+                Record test
+              </ButtonLink>
+            )}
+            {j.status !== "dispatched" && <ButtonLink href="/board">Update status</ButtonLink>}
+          </>
+        }
+      />
+      {received && (
+        <div className="mb-4 rounded-lg bg-[#d1fae5] px-4 py-3 font-semibold text-success">
+          Job {j.number} received. It is now in To Do on the technician board.
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card>
           <b className="text-base">Device and fault</b>
@@ -51,7 +80,12 @@ export function JobPage() {
               ]}
             />
           </div>
-          <b className="mb-3 mt-5 block text-base">Parts used</b>
+          {j.unrepairableReason && (
+            <div className="mt-4">
+              <Alert>Cannot repair: {j.unrepairableReason}</Alert>
+            </div>
+          )}
+          <b className="mb-3 mt-6 block text-base">Parts used</b>
           <Table
             rows={j.parts}
             rowKey={(p) => p.id}
@@ -67,16 +101,34 @@ export function JobPage() {
           <b className="text-base">Timeline</b>
           <div className="mt-4 leading-[2.2]">
             {STEPS.map((step, i) => (
-              <div key={step} className={i < reached ? "" : "text-muted"}>
-                {i < reached ? "●" : "○"} {step}
+              <div key={step} className={i < REACHED[j.status] ? "" : "text-muted"}>
+                {i < REACHED[j.status] ? "●" : "○"} {step}
               </div>
             ))}
           </div>
+          <b className="mt-5 block text-sm">History</b>
+          <ol className="mt-2 space-y-3 border-l-2 border-soft pl-4 text-sm">
+            {j.events.map((e) => (
+              <li key={e.id}>
+                <div className="font-semibold text-ink">
+                  {e.fromStatus === null ? "Received" : e.fromStatus === e.toStatus ? (e.note ?? "Updated") : JOB_STATUS_LABEL[e.toStatus]}
+                </div>
+                {e.note && e.fromStatus !== e.toStatus && (e.fromStatus !== null || e.note !== "Device received") && <div className="text-ink">{e.note}</div>}
+                <div className="text-xs text-muted">
+                  {fmtDateTime(e.createdAt)}
+                  {e.by ? ` · ${e.by}` : ""}
+                </div>
+              </li>
+            ))}
+          </ol>
         </Card>
       </div>
 
       <Card className="mt-4">
-        <b className="text-base">QR label for this device</b>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <b className="text-base">QR label for this device</b>
+          {j.device.qrCode && <ButtonLink href={`/devices/${j.device.id}/label?job=${j.id}`}>Print QR label</ButtonLink>}
+        </div>
         <p className="mb-4 mt-4 text-muted">Created when the job passes QC. Technicians scan it to see the full repair history of this device.</p>
         <Facts
           items={[
@@ -89,14 +141,13 @@ export function JobPage() {
                 </Chip>
               ) : (
                 <span key="q">
-                  <Chip tone="warn">Pending</Chip>
-                  <span className="mt-1 block">Created after QC</span>
+                  <Chip tone="warn">Pending</Chip> <b className="font-medium">Created after QC</b>
                 </span>
               ),
             ],
           ]}
         />
-        <div className="mt-5">
+        <div className="mt-4">
           <Table
             rows={j.components}
             rowKey={(c) => c.id}

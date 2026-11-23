@@ -14,6 +14,10 @@ const PATHS = {
   close: "M6 6l12 12M18 6L6 18",
   mail: "M4 5h16v14H4zM4 6l8 7 8-7",
   chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  list: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
+  qr: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2zM16 16h2v2h-2z",
+  history: "M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 3",
+  doc: "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6",
   dot: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
 } as const;
 

@@ -13,6 +13,7 @@ const LIMIT = 20;
 
 export function CustomersPage() {
   const { can } = useSession();
+  const showEmail = can("company_admin", "site_manager");
   const router = useRouter();
   const allowed = can("company_admin", "site_manager", "head_technician");
   const [q, setQ] = useState("");
@@ -43,7 +44,7 @@ export function CustomersPage() {
           setQ(v);
           setPage(1);
         }}
-        placeholder="Search by customer"
+        placeholder={showEmail ? "Search by customer or email" : "Search by customer"}
       />
       {s && s.countries.length > 1 && (
         <Pills
@@ -69,6 +70,7 @@ export function CustomersPage() {
             empty={search || country !== "all" ? "No customers match" : "No customers yet"}
             columns={[
               { header: "Customer", cell: (c) => <CellLink href={`/customers/${c.id}`}>{c.name}</CellLink> },
+              ...(showEmail ? [{ header: "Email", cell: (c: CustomerRow) => c.email ?? "—" }] : []),
               { header: "Country", cell: (c) => c.country ?? "—" },
               { header: "Open jobs", cell: (c) => c.openJobs },
             ]}

@@ -375,6 +375,7 @@ model Job {
   components  JobComponent[]
   parts       JobPart[]
   qrPrintLogs QrPrintLog[]
+  tests       JobTest[]
   movements   StockMovement[]
   invoice     JobInvoice?
 
@@ -585,6 +586,25 @@ model JobPart {
 
   @@index([jobId])
   @@map("job_parts")
+}
+
+// Bench test before QC (prototype "Test record"): each board, PSU and fans pass, fail or not tested.
+// All pass moves the job to qc_passed; any fail keeps it in repair. Kept as a log, newest wins.
+model JobTest {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  jobId      String   @map("job_id") @db.Uuid
+  testedOn   DateTime @map("tested_on") @db.Date
+  testedById String   @map("tested_by_id") @db.Uuid
+  workDone   String?  @map("work_done")
+  results    Json // { hb1: "pass" | "fail" | "not_tested", hb2, hb3, ctrl, psu, fan }
+  passed     Boolean
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@map("job_tests")
 }
 
 model QrPrintLog {

@@ -61,6 +61,7 @@ export function CustomerPage() {
                 Edit customer
               </ButtonLink>
             )}
+            {can("company_admin", "site_manager", "head_technician") && <ButtonLink href={`/jobs/new?customer=${c.id}`}>+ Receive device</ButtonLink>}
             {canDelete && (
               <Button variant="danger" onClick={remove}>
                 Delete

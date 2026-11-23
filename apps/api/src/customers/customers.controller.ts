@@ -25,7 +25,8 @@ const detail = { id: true, name: true, contactName: true, email: true, phone: tr
 
 // Customers ship devices to the repair center; they never log in. They belong to the whole company (not one site),
 // so everyone who receives jobs can pick from the full list.
-// Contact details (email, phone) only come back from the detail endpoint, and each read is logged.
+// Contact details: the list shows email to admins and site managers (prototype Customers table); phone and
+// contact person only come back from the detail endpoint. Every read that includes contact details is logged.
 @Controller('customers')
 export class CustomersController {
   constructor(
@@ -35,22 +36,27 @@ export class CustomersController {
 
   @Roles('company_admin', 'site_manager', 'head_technician')
   @Get()
-  async list(@CurrentUser() me: AuthUser, @Query() query: unknown) {
+  async list(@CurrentUser() me: AuthUser, @Query() query: unknown, @Req() req: Request) {
     const q = parse(CustomerQuery, query);
+    const withEmail = me.role === 'company_admin' || me.role === 'site_manager';
+    const like = q.q ? { contains: q.q, mode: 'insensitive' as const } : undefined;
     const where = {
-      ...(q.q ? { name: { contains: q.q, mode: 'insensitive' as const } } : {}),
+      ...(like ? { OR: [{ name: like }, ...(withEmail ? [{ email: like }] : [])] } : {}),
       ...(q.country ? { country: q.country } : {}),
     };
     const db = this.db.tenant(me);
     const [rows, total] = await Promise.all([
       db.customer.findMany({
         where,
-        select: { id: true, name: true, country: true, _count: { select: { devices: true, jobs: { where: { status: { notIn: ['qc_passed', 'dispatched'] } } } } } },
+        select: { id: true, name: true, country: true, email: withEmail, _count: { select: { devices: true, jobs: { where: { status: { notIn: ['qc_passed', 'dispatched'] } } } } } },
         orderBy: { name: 'asc' },
         ...pageArgs(q),
       }),
       db.customer.count({ where }),
     ]);
+    if (withEmail && rows.length) {
+      await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'view.customer_list', entityType: 'customer', after: { query: q }, ip: req.ip });
+    }
     return paged(rows.map(({ _count, ...c }) => ({ ...c, devices: _count.devices, openJobs: _count.jobs })), total, q);
   }
 

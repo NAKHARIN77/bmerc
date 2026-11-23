@@ -10,9 +10,11 @@ import { SitesModule } from './sites/sites.module.js';
 import { TeamsModule } from './teams/teams.module.js';
 import { PartsModule } from './parts/parts.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { StockModule } from './stock/stock.module.js';
+import { DevicesModule } from './devices/devices.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule],
+  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule, StockModule, DevicesModule],
   controllers: [AppController],
 })
 export class AppModule {}
