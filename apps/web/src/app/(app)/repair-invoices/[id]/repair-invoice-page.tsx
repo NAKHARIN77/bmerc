@@ -107,6 +107,7 @@ export function RepairInvoicePage() {
         </div>
         <div className="mt-5">
           <Table
+            variant="table"
             rows={i.lines}
             rowKey={(l) => l.id}
             columns={[

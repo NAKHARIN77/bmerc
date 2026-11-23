@@ -146,20 +146,72 @@ export interface Column<T> {
   className?: string;
 }
 
-export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick }: {
+// Table-only classes (alignment, nowrap, column widths) would squeeze or overflow a card's fields.
+const clean = (c?: string) => c?.replace(/(^|\s)(text-right|whitespace-nowrap|min-w-\S+|max-w-\S+|w-\S+)(?=\s|$)/g, " ");
+
+/**
+ * A list of records. By default each row is a card in a grid: the first column is the title, "Status" sits beside it,
+ * the other columns are small label/value pairs, and untitled columns (actions) go at the bottom right.
+ * variant="table" keeps a classic table, for printed documents such as invoice lines.
+ */
+export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick, variant = "cards" }: {
   columns: Array<Column<T>>;
   rows: T[];
   rowKey: (row: T) => string;
   empty?: string;
   onRowClick?: (row: T) => void;
+  variant?: "cards" | "table";
 }) {
+  if (variant === "cards") {
+    const [title, ...rest] = columns;
+    const status = rest.find((c) => c.header === "Status");
+    const actions = rest.filter((c) => !c.header);
+    const fields = rest.filter((c) => c !== status && c.header);
+    if (rows.length === 0) return <div className="rounded-xl border border-dashed border-line bg-white/60 px-4 py-8 text-center text-sm text-muted">{empty}</div>;
+    return (
+      <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
+        {rows.map((r) => (
+          <li
+            key={rowKey(r)}
+            onClick={onRowClick ? () => onRowClick(r) : undefined}
+            className={cx(
+              "flex flex-col rounded-xl border border-soft bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.04)] transition-shadow",
+              onRowClick && "cursor-pointer hover:border-[#c9d6f2] hover:shadow-[0_4px_14px_rgba(0,99,152,.12)]",
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className={cx("min-w-0 break-words text-[15px] font-semibold text-ink", clean(title.className))}>{title.cell(r)}</div>
+              {status && <div className="shrink-0">{status.cell(r)}</div>}
+            </div>
+            {fields.length > 0 && (
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {fields.map((c) => (
+                  <div key={c.header} className="min-w-0">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.header}</dt>
+                    <dd className={cx("mt-0.5 break-words text-sm text-ink", clean(c.className))}>{c.cell(r)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {actions.length > 0 && (
+              <div className="mt-auto flex flex-wrap justify-end gap-2 pt-3" onClick={(e) => e.stopPropagation()}>
+                {actions.map((c, i) => (
+                  <div key={i}>{c.cell(r)}</div>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
-    <div className="overflow-x-auto rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+    <div className="overflow-x-auto rounded-xl border border-soft bg-white">
       <table className="w-full border-collapse text-left">
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c.header} className={cx("bg-navy px-4 py-3.5 text-xs font-semibold uppercase text-white", c.className)}>
+              <th key={c.header} className={cx("border-b border-soft bg-[#f6f8fd] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted", c.className)}>
                 {c.header}
               </th>
             ))}

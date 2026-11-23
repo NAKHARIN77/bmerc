@@ -150,6 +150,7 @@ function Receipt({ i }: { i: BillingInvoice }) {
         />
       </Card>
       <Table
+        variant="table"
         rows={[i]}
         rowKey={(x) => x.id}
         columns={[
