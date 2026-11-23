@@ -10,6 +10,7 @@ import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
+import { PlatformDashboard } from "./platform-dashboard";
 import { ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
@@ -28,14 +29,7 @@ export function Dashboard() {
   }, [bench, router]);
   if (bench) return null;
 
-  if (me.isPlatformAdmin) {
-    return (
-      <>
-        <PageHeader title="Platform overview" subtitle="Companies, plans and payments" />
-        <Card>The platform owner console (companies, quotas, revenue) comes with the billing work in plan step 7.</Card>
-      </>
-    );
-  }
+  if (me.isPlatformAdmin) return <PlatformDashboard />;
 
   return (
     <>

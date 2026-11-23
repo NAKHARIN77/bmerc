@@ -90,9 +90,10 @@ export function SitePage() {
           <Table
             rows={people}
             rowKey={(m) => m.id}
+            onRowClick={can("company_admin", "site_manager", "head_technician") ? (m) => router.push(`/technicians/${m.id}`) : undefined}
             empty="No technicians at this site yet"
             columns={[
-              { header: "Technician", cell: (m) => (m.isActive ? m.fullName : <span className="text-muted line-through">{m.fullName}</span>) },
+              { header: "Technician", cell: (m) => (m.isActive ? <CellLink href={`/technicians/${m.id}`}>{m.fullName}</CellLink> : <span className="text-muted line-through">{m.fullName}</span>) },
               { header: "Role", cell: (m) => (m.role ? ROLE_LABEL[m.role] : "—") },
               { header: "Team", cell: (m) => m.team },
               { header: "Open jobs", cell: (m) => m.jobsOpen },

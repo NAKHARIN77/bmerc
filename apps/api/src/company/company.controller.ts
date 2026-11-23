@@ -70,8 +70,8 @@ export class CompanyController {
     return after;
   }
 
-  /** Plan limits next to current usage (Subscription page, dashboard "Your plan" card). */
-  @Roles('company_admin')
+  /** Plan limits next to current usage (Subscription page, "Your plan" card, the quota warning for whoever receives jobs). */
+  @Roles('company_admin', 'site_manager', 'head_technician')
   @AllowSuspended()
   @Get('usage')
   async usage(@CurrentUser() me: AuthUser) {

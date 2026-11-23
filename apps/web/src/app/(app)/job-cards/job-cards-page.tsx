@@ -54,7 +54,7 @@ export function JobCardsPage() {
         actions={
           <>
             {can("company_admin") && (
-              <ButtonLink href="/users" variant="secondary">
+              <ButtonLink href="/technicians" variant="secondary">
                 Technicians
               </ButtonLink>
             )}
