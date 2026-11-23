@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import type { PlatformCompany } from "@/lib/platform";
+import { Icon } from "@/components/icons";
 import { Alert, Button, ButtonLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills } from "@/components/ui";
 import { OwnerOnly } from "../owner-only";
 import { AccessChip, PaymentChip } from "../owner-chips";
@@ -122,10 +123,18 @@ function Quotas() {
                 </div>
                 <div className="ml-auto flex shrink-0 gap-2">
                   <ButtonLink href={`/platform/quotas/${c.id}`} variant="secondary" className="h-9">
-                    Change limits
+                    <Icon name="pencil" size={16} />
+                    Limits
                   </ButtonLink>
                   {c.status !== "closed" && (
-                    <Button className="h-9" variant={c.status === "active" ? "secondary" : "primary"} busy={busy === c.id} onClick={() => toggle(c)}>
+                    <Button
+                      className="h-9"
+                      variant={c.status === "active" ? "secondary" : "primary"}
+                      title={c.status === "active" ? "Stop this company using the system" : "Let this company use the system again"}
+                      busy={busy === c.id}
+                      onClick={() => toggle(c)}
+                    >
+                      <Icon name={c.status === "active" ? "pause" : "play"} size={16} className={c.status === "active" ? "text-danger" : undefined} />
                       {c.status === "active" ? "Suspend" : "Activate"}
                     </Button>
                   )}

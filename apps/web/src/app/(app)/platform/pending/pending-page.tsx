@@ -7,6 +7,7 @@ import { useApi } from "@/lib/use-api";
 import { fmtDate } from "@/lib/format";
 import { usd, type PlatformInvoice } from "@/lib/platform";
 import type { Page } from "@/lib/types";
+import { Icon } from "@/components/icons";
 import { Alert, Button, ButtonLink, Chip, ErrorState, Input, Kpi, KpiRow, Loading, PageHeader, Pills } from "@/components/ui";
 import { OwnerOnly } from "../owner-only";
 
@@ -127,16 +128,19 @@ function Pending() {
                       <div className="text-[11px] text-muted">{i.taxCents ? `incl. VAT ${usd(i.taxCents, i.currency)}` : "No VAT"}</div>
                     </div>
                     <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
-                      <Button className="h-9" onClick={() => (setConfirming(i.id), setRef(i.paymentRef ?? ""))}>
-                        Confirm paid
+                      <Button className="h-9 !bg-success hover:!bg-[#0b6b4f]" title="Confirm the money arrived" onClick={() => (setConfirming(i.id), setRef(i.paymentRef ?? ""))}>
+                        <Icon name="check" size={16} strokeWidth={2.4} />
+                        Paid
                       </Button>
                       {i.slipUploadedAt && (
                         <Button
                           className="h-9"
                           variant="secondary"
+                          title="The money did not arrive: the company has to pay again"
                           busy={busy === i.id}
                           onClick={() => window.confirm(`Reject the payment report for ${i.number}? The invoice stays open and ${i.company.name} has to pay again.`) && run(i.id, () => api(`/platform/invoices/${i.id}/reject`, { method: "POST", body: {} }))}
                         >
+                          <Icon name="close" size={16} strokeWidth={2.4} className="text-danger" />
                           Not received
                         </Button>
                       )}

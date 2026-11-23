@@ -22,6 +22,10 @@ const PATHS = {
   dollar: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM14.5 9a2.5 2.5 0 0 0-5 1c0 3 5 2 5 5a2.5 2.5 0 0 1-5 1M12 6v1.5M12 16.5V18",
   heart: "M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z",
   dot: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  pencil: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
+  pause: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 9v6M14 9v6",
+  play: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 8.5v7l5.5-3.5z",
 } as const;
 
 export type IconName = keyof typeof PATHS;
