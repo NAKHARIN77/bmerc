@@ -1,4 +1,4 @@
-import { periods } from './platform.controller.js';
+import { periods } from './periods.js';
 
 describe('revenue periods', () => {
   const now = new Date('2026-11-23T10:00:00Z'); // a Monday

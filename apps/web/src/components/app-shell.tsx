@@ -34,6 +34,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/users", "/stock", "/parts", "/technicians"] },
+      { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
       { label: "Subscription", href: "/settings/company", icon: "doc", roles: ["company_admin"] },
     ],
   },
