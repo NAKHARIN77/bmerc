@@ -12,13 +12,17 @@ if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_DEMO_SEED) {
 }
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 
-export const DEMO_PASSWORD = 'Demo1234!';
+// A demo site on the internet must not use the password printed in the README: set SEED_PASSWORD there.
+export const DEMO_PASSWORD = process.env.SEED_PASSWORD || 'Demo1234!';
+if (process.env.ALLOW_DEMO_SEED && !process.env.SEED_PASSWORD) {
+  throw new Error('Set SEED_PASSWORD when seeding a demo environment, so the demo accounts do not use the public password');
+}
 
 async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
   await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
-    job_parts, stock_movements, site_stock, qr_print_logs, job_components, job_events,
+    job_parts, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
     jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
     companies, plans RESTART IDENTITY CASCADE`);
   await db.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
@@ -192,7 +196,7 @@ async function main() {
     data: { companyId: C, number: 'INV-2026-0011', periodStart, periodEnd, amountCents: 29900, taxRateBps: 700, taxCents: 2093, status: 'paid', dueAt: daysAgo(-7), paidAt: daysAgo(3), paymentRef: 'PayPal demo' },
   });
 
-  console.log(`Seeded. All demo accounts use password: ${DEMO_PASSWORD}`);
+  console.log(`Seeded. All demo accounts use password: ${process.env.SEED_PASSWORD ? '(the SEED_PASSWORD you set)' : DEMO_PASSWORD}`);
   console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · manager@siamhash.demo (site manager, Chonburi)');
   console.log('  head@siamhash.demo (head technician) · tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper, Bangkok) · admin@northminer.demo (suspended company)');
 }

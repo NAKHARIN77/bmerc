@@ -2,14 +2,15 @@
 
 import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
-import { Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
+import { ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -19,6 +20,13 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
 
 export function Dashboard() {
   const { me, can } = useSession();
+  const router = useRouter();
+  const bench = can("head_technician", "technician");
+  // Technicians start on their bench board (the prototype's technician app has no dashboard).
+  useEffect(() => {
+    if (bench) router.replace("/board");
+  }, [bench, router]);
+  if (bench) return null;
 
   if (me.isPlatformAdmin) {
     return (
@@ -31,7 +39,11 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Overview" subtitle="Your repair center at a glance" />
+      <PageHeader
+        title="Overview"
+        subtitle="Your repair center at a glance"
+        actions={can("company_admin", "site_manager", "head_technician") ? <ButtonLink href="/jobs/new">+ New ticket</ButtonLink> : undefined}
+      />
       <Counts />
       <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
         <NeedsAttention />

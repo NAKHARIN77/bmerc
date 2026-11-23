@@ -120,6 +120,26 @@ export function SitePage() {
           />
         ))}
 
+      {tab === "stock" && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          <ButtonLink href="/parts" variant="secondary" className="h-9">
+            Parts catalog
+          </ButtonLink>
+          {can("company_admin", "site_manager", "stock_keeper") && (
+            <>
+              <ButtonLink href={`/stock/move?type=in&site=${s.id}`} variant="secondary" className="h-9">
+                Stock in
+              </ButtonLink>
+              <ButtonLink href={`/stock/move?type=out&site=${s.id}`} variant="secondary" className="h-9">
+                Stock out
+              </ButtonLink>
+              <ButtonLink href={`/stock/move?type=adjust&site=${s.id}`} className="h-9">
+                Adjust
+              </ButtonLink>
+            </>
+          )}
+        </div>
+      )}
       {tab === "stock" &&
         (stock.error ? (
           <ErrorState error={stock.error} onRetry={stock.reload} />
