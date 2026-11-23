@@ -196,6 +196,12 @@ async function main() {
     data: { companyId: C, number: 'INV-2026-0011', periodStart, periodEnd, amountCents: 29900, taxRateBps: 700, taxCents: 2093, status: 'paid', dueAt: daysAgo(-7), paidAt: daysAgo(3), paymentRef: 'PayPal demo' },
   });
 
+  // Miner models are platform reference data (migration 20261124120000), kept across reseeds: link to them.
+  await db.$executeRawUnsafe(`UPDATE devices d SET miner_model_id = m.id FROM miner_models m WHERE lower(trim(d.model)) = lower(m.name)`);
+  await db.$executeRawUnsafe(`UPDATE parts p SET model_ids = sub.ids FROM (
+    SELECT p2.id, array_agg(m.id) AS ids FROM parts p2 JOIN miner_models m ON m.chip_model IS NOT NULL AND p2.name ~* ('\\m' || m.chip_model || '\\M') GROUP BY p2.id
+  ) sub WHERE p.id = sub.id`);
+
   console.log(`Seeded. All demo accounts use password: ${process.env.SEED_PASSWORD ? '(the SEED_PASSWORD you set)' : DEMO_PASSWORD}`);
   console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · manager@siamhash.demo (site manager, Chonburi)');
   console.log('  head@siamhash.demo (head technician) · tech@siamhash.demo (technician) · stock@siamhash.demo (stock keeper, Bangkok) · admin@northminer.demo (suspended company)');

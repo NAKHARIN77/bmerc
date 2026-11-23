@@ -15,9 +15,10 @@ import { DevicesModule } from './devices/devices.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { MinerModelsModule } from './miner-models/miner-models.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule, StockModule, DevicesModule, PlatformModule, ReportsModule, BillingModule],
+  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule, StockModule, DevicesModule, PlatformModule, ReportsModule, BillingModule, MinerModelsModule],
   controllers: [AppController],
 })
 export class AppModule {}

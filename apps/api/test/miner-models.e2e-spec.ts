@@ -1,0 +1,76 @@
+import 'dotenv/config';
+import { Test } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/main.js';
+import { PrismaClient } from '../src/generated/prisma/client.js';
+
+// Relies on the demo seed and the miner model list from migration 20261124120000. Everything made here is removed in afterAll.
+const PW = 'Demo1234!';
+const OWNER = 'owner@bmerc.demo';
+const ADMIN = 'admin@siamhash.demo';
+const owner = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.MIGRATE_DATABASE_URL }) });
+
+describe('Miner models (e2e)', () => {
+  let app: INestApplication;
+  const http = () => request(app.getHttpServer());
+  const tokens: Record<string, string> = {};
+  const auth = (who: string) => ({ Authorization: `Bearer ${tokens[who]}` });
+  const get = (who: string, path: string) => http().get(`/api/v1${path}`).set(auth(who));
+  const post = (who: string, path: string, body: object) => http().post(`/api/v1${path}`).set(auth(who)).send(body);
+  const patch = (who: string, path: string, body: object) => http().patch(`/api/v1${path}`).set(auth(who)).send(body);
+  const tag = Date.now().toString(36);
+  const made = { models: [] as string[], parts: [] as string[] };
+
+  beforeAll(async () => {
+    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = mod.createNestApplication();
+    configureApp(app);
+    await app.init();
+    for (const email of [OWNER, ADMIN]) {
+      tokens[email] = (await http().post('/api/v1/auth/login').send({ email, password: PW }).expect(200)).body.accessToken;
+    }
+  });
+
+  afterAll(async () => {
+    await owner.part.deleteMany({ where: { id: { in: made.parts } } });
+    await owner.minerModel.deleteMany({ where: { id: { in: made.models } } });
+    await owner.$disconnect();
+    await app.close();
+  });
+
+  it('companies read the list with hashboards and chips', async () => {
+    const list = (await get(ADMIN, '/miner-models').expect(200)).body as Array<{ name: string; hashboards: number; chipModel: string | null; chipsPerBoard: number | null }>;
+    expect(list.find((m) => m.name === 'Antminer S19j Pro')).toMatchObject({ hashboards: 3, chipModel: 'BM1362', chipsPerBoard: 126 });
+    await get(ADMIN, '/platform/miner-models').expect(403);
+  });
+
+  it('a job shows the model of its device', async () => {
+    const job = (await get(ADMIN, '/jobs?limit=1').expect(200)).body.items[0];
+    const detail = (await get(ADMIN, `/jobs/${job.id}`).expect(200)).body;
+    expect(detail.device.minerModel?.name).toBe(detail.device.model);
+  });
+
+  it('the platform owner adds, corrects and checks a model', async () => {
+    const m = (await post(OWNER, '/platform/miner-models', { brand: 'Test', name: `Test Miner ${tag}`, hashboards: 4, chipModel: 'BM9999', chipsPerBoard: 60 }).expect(201)).body;
+    made.models.push(m.id);
+    expect(m).toMatchObject({ verified: false, isActive: true, hashboards: 4 });
+    await post(OWNER, '/platform/miner-models', { brand: 'Test', name: `Test Miner ${tag}`, hashboards: 3 }).expect(409);
+    await post(OWNER, '/platform/miner-models', { brand: 'Test', name: `Bad ${tag}`, hashboards: 0 }).expect(400);
+    const after = (await patch(OWNER, `/platform/miner-models/${m.id}`, { verified: true, chipsPerBoard: 62 }).expect(200)).body;
+    expect(after).toMatchObject({ verified: true, chipsPerBoard: 62 });
+    await post(ADMIN, '/platform/miner-models', { brand: 'X', name: `Nope ${tag}`, hashboards: 3 }).expect(403);
+  });
+
+  it('a part records the models it fits; unknown models are refused', async () => {
+    const modelId = made.models[0];
+    const p = (await post(ADMIN, '/parts', { sku: `T-${tag}`, name: `Hash chip BM9999 ${tag}`, category: 'Chips', modelIds: [modelId] }).expect(201)).body;
+    made.parts.push(p.id);
+    expect(p.modelIds).toEqual([modelId]);
+    await post(ADMIN, '/parts', { sku: `U-${tag}`, name: 'Unknown fit', modelIds: ['00000000-0000-4000-8000-000000000000'] }).expect(404);
+    const cleared = (await patch(ADMIN, `/parts/${p.id}`, { modelIds: [] }).expect(200)).body;
+    expect(cleared.modelIds).toEqual([]);
+  });
+});

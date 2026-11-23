@@ -47,6 +47,7 @@ const OWNER_NAV: NavItem[] = [
   { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
   { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
   { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
+  { label: "Miner models", href: "/platform/models", icon: "box", roles: "all" },
   { label: "Revenue", href: "/platform/revenue", icon: "dollar", roles: "all" },
   { label: "Payments", href: "/platform/payments", icon: "dollar", roles: "all" },
   { label: "Pending payments", href: "/platform/pending", icon: "dollar", roles: "all" },

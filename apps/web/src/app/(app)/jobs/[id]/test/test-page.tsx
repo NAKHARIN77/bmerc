@@ -1,5 +1,6 @@
 "use client";
 
+import { MinerSpec, boardSlots } from "@/components/miner-spec";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api";
@@ -159,6 +160,9 @@ const blank = (): Comp => ({ component: "", serialNo: "", replacementSerialNo: "
 
 /** Serials of the boards worked on, so a board sent in alone later still shows its history. */
 function Boards({ job: j, editable, reload }: { job: JobDetail; editable: boolean; reload: () => void }) {
+  const mm = j.device.minerModel;
+  const slots = boardSlots(mm);
+  const chip = mm?.chipModel ?? null;
   const [rows, setRows] = useState<Comp[]>(() =>
     j.components.length
       ? j.components.map((c) => ({ component: c.component, serialNo: c.serialNo ?? "", replacementSerialNo: c.replacementSerialNo ?? "", workDone: c.workDone ?? "", result: c.result }))
@@ -189,9 +193,22 @@ function Boards({ job: j, editable, reload }: { job: JobDetail; editable: boolea
     <Card>
       <b className="text-base">Boards worked on</b>
       <p className="mb-3 mt-1 text-xs text-muted">Write the serial of each board. If you fitted a new board, add its serial too, so its history can be found later.</p>
+      {mm && (
+        <div className="mb-3 rounded-lg border border-soft px-3 py-2">
+          <b className="text-[13px]">{mm.name}</b>
+          <MinerSpec model={mm} />
+        </div>
+      )}
       {rows.map((r, i) => (
         <div key={i} className="mb-3 grid gap-2 rounded-lg bg-[#f6f8ff] p-3 sm:grid-cols-2">
-          <Input aria-label="Component" placeholder="e.g. Hashboard 2" value={r.component} disabled={!editable} onChange={(e) => set(i, "component", e.target.value)} />
+          <Select aria-label="Board or part" value={r.component} disabled={!editable} onChange={(e) => set(i, "component", e.target.value)}>
+            <option value="">Which board or part?</option>
+            {[...new Set([...slots, ...(r.component ? [r.component] : [])])].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
           <Select aria-label="Result" value={r.result} disabled={!editable} onChange={(e) => set(i, "result", e.target.value)}>
             <option value="repaired">Repaired</option>
             <option value="replaced">Replaced</option>
@@ -199,7 +216,7 @@ function Boards({ job: j, editable, reload }: { job: JobDetail; editable: boolea
           </Select>
           <Input aria-label="Board serial" placeholder="Board serial" value={r.serialNo} disabled={!editable} onChange={(e) => set(i, "serialNo", e.target.value)} />
           <Input aria-label="New board serial" placeholder="New board serial (if replaced)" disabled={!editable || r.result !== "replaced"} value={r.replacementSerialNo} onChange={(e) => set(i, "replacementSerialNo", e.target.value)} />
-          <Input aria-label="Work done on this board" className="sm:col-span-2" placeholder="e.g. Replaced 3 chips" value={r.workDone} disabled={!editable} onChange={(e) => set(i, "workDone", e.target.value)} />
+          <Input aria-label="Work done on this board" className="sm:col-span-2" placeholder={r.component.startsWith("Hashboard") && chip ? `e.g. Replaced 3 ${chip} chips` : "e.g. Replaced 3 chips"} value={r.workDone} disabled={!editable} onChange={(e) => set(i, "workDone", e.target.value)} />
           {editable && rows.length > 1 && (
             <Button variant="ghost" className="h-8 justify-start sm:col-span-2" onClick={() => setRows((x) => x.filter((_, n) => n !== i))}>
               Remove
@@ -230,6 +247,11 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const available = (stock.data?.items ?? []).filter((r) => r.qty > 0);
+  // Parts made for this miner model first, then parts with no model set (fans, paste, or not yet linked), then the rest.
+  const mid = j.device.minerModel?.id;
+  const fits = mid ? available.filter((r) => r.part.modelIds.includes(mid)) : [];
+  const anyModel = available.filter((r) => r.part.modelIds.length === 0);
+  const others = available.filter((r) => r.part.modelIds.length > 0 && !(mid && r.part.modelIds.includes(mid)));
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -291,11 +313,33 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
             </label>
             <Select id="part-pick" value={partId} onChange={(e) => setPartId(e.target.value)} required>
               <option value="">{stock.data ? (available.length ? "Pick a part…" : "No parts in stock at this site") : "Loading…"}</option>
-              {available.map((r) => (
-                <option key={r.part.id} value={r.part.id}>
-                  {r.part.name} · {r.qty} left
-                </option>
-              ))}
+              {fits.length > 0 && (
+                <optgroup label={`Fits ${j.device.model}`}>
+                  {fits.map((r) => (
+                    <option key={r.part.id} value={r.part.id}>
+                      {r.part.name} · {r.qty} left
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {anyModel.length > 0 && (
+                <optgroup label="No model set (fans, paste…)">
+                  {anyModel.map((r) => (
+                    <option key={r.part.id} value={r.part.id}>
+                      {r.part.name} · {r.qty} left
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {others.length > 0 && (
+                <optgroup label="For other models">
+                  {others.map((r) => (
+                    <option key={r.part.id} value={r.part.id}>
+                      {r.part.name} · {r.qty} left
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </Select>
           </div>
           <div className="w-20">

@@ -342,11 +342,14 @@ model Device {
   serialNo   String     @map("serial_no")
   hashrateTh Decimal?   @map("hashrate_th") @db.Decimal(10, 2)
   qrCode     String?    @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
+  // The catalog model this device is, when picked from the list at intake (model above keeps the name).
+  minerModelId String?  @map("miner_model_id") @db.Uuid
   createdAt  DateTime   @default(now()) @map("created_at")
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  customer Customer @relation(fields: [customerId], references: [id])
-  jobs     Job[]
+  company    Company     @relation(fields: [companyId], references: [id])
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  minerModel MinerModel? @relation(fields: [minerModelId], references: [id])
+  jobs       Job[]
 
   @@unique([companyId, kind, serialNo])
   @@index([companyId, serialNo])
@@ -528,6 +531,8 @@ model Part {
   sku       String
   name      String
   category  String?
+  // Miner models this part fits (miner_models ids). Empty means it fits any model (fans, thermal paste).
+  modelIds  String[] @default([]) @map("model_ids") @db.Uuid
   unit      String   @default("pcs")
   minQty    Int      @default(0) @map("min_qty")
   isActive  Boolean  @default(true) @map("is_active")
@@ -667,4 +672,27 @@ model StockTransfer {
 
   @@index([companyId, status])
   @@map("stock_transfers")
+}
+
+// Reference list of miner models with their hashboards and chips, kept by the platform owner for every company.
+// Used at intake, when choosing parts for a job and when recording which boards were worked on.
+// verified = the platform owner checked the numbers against a real unit or the maker's sheet.
+model MinerModel {
+  id            String   @id @default(uuid()) @db.Uuid
+  brand         String
+  name          String   @unique
+  hashboards    Int      @default(3)
+  chipModel     String?  @map("chip_model")
+  chipsPerBoard Int?     @map("chips_per_board")
+  hashrateTh    Decimal? @map("hashrate_th") @db.Decimal(10, 2)
+  notes         String?
+  sourceUrl     String?  @map("source_url")
+  verified      Boolean  @default(false)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  devices Device[]
+
+  @@map("miner_models")
 }

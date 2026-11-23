@@ -7,11 +7,11 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
-import type { Assignee, CustomerRow, Page, Site, Team } from "@/lib/types";
+import type { Assignee, CustomerRow, MinerModel, Page, Site, Team } from "@/lib/types";
+import { MinerSpec } from "@/components/miner-spec";
 import { NoAccess } from "@/components/app-shell";
 import { ButtonLink, Field, FormCard, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
 
-const MODELS = ["Antminer S19", "Antminer S19 Pro", "Antminer S19j Pro", "Antminer S19 XP", "Antminer S21", "Antminer S21 Pro", "Whatsminer M30S", "Whatsminer M30S++", "Whatsminer M50", "Whatsminer M60", "Avalon A1246", "Avalon A1366"];
 const PRIORITY_LABEL = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" } as const;
 
 /** Receive Work Order (intake): a device arrives at a site and gets its job. */
@@ -31,6 +31,9 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
   const params = useSearchParams();
   const [siteId, setSiteId] = useState(sites.find((x) => x.id === params.get("site"))?.id ?? sites[0]?.id ?? "");
   const [teamId, setTeamId] = useState("");
+  const models = useApi<MinerModel[]>("/miner-models");
+  const [model, setModel] = useState("");
+  const picked = (models.data ?? []).find((m) => m.name.toLowerCase() === model.trim().toLowerCase()) ?? null;
   const assignees = useApi<Assignee[]>(siteId ? `/jobs/assignees?siteId=${siteId}` : null);
   const teams = useApi<Team[]>("/teams");
   const siteTeams = (teams.data ?? []).filter((t) => t.siteId === siteId);
@@ -49,6 +52,7 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
       siteId,
       kind: get("kind"),
       model: get("model"),
+      minerModelId: picked?.id ?? null,
       serialNo: get("serialNo"),
       hashrateTh: hashrate ? Number(hashrate) : null,
       reportedFault: get("reportedFault"),
@@ -167,12 +171,13 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
           <Field label="Model" error={fields.model}>
             {(id) => (
               <>
-                <Input id={id} name="model" list="models" placeholder="e.g. Antminer S19 Pro" required />
+                <Input id={id} name="model" list="models" placeholder="Pick from the list or type it" required value={model} onChange={(e) => setModel(e.target.value)} />
                 <datalist id="models">
-                  {MODELS.map((m) => (
-                    <option key={m} value={m} />
+                  {(models.data ?? []).map((m) => (
+                    <option key={m.id} value={m.name} />
                   ))}
                 </datalist>
+                {picked && <MinerSpec model={picked} className="mt-1.5" />}
               </>
             )}
           </Field>

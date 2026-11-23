@@ -1,5 +1,6 @@
 "use client";
 
+import { MinerSpec } from "@/components/miner-spec";
 import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
@@ -71,7 +72,13 @@ export function JobPage() {
           <div className="mt-4">
             <Facts
               items={[
-                ["Model", j.device.model],
+                [
+                  "Model",
+                  <span key="m">
+                    {j.device.model}
+                    {j.device.minerModel && <MinerSpec model={j.device.minerModel} className="mt-0.5 font-normal" />}
+                  </span>,
+                ],
                 ["Serial number", j.device.serialNo],
                 ["Hashrate", j.device.hashrateTh ? `${Number(j.device.hashrateTh)} TH/s` : "—"],
                 ["Status", <StatusChip key="s" status={j.status} />],

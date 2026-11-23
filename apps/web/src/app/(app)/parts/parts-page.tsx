@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
-import type { Page, PartRow } from "@/lib/types";
+import type { MinerModel, Page, PartRow } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { ButtonLink, CellLink, Chip, ErrorState, Loading, PageHeader, Pager, SearchBar, Select, Table } from "@/components/ui";
 
@@ -24,6 +24,8 @@ export function PartsPage() {
     const [page, setPage] = useState(1);
   const search = useDebounced(q.trim());
   const categories = useApi<string[]>(me.role ? "/parts/categories" : null);
+  const models = useApi<MinerModel[]>(me.role ? "/miner-models" : null);
+  const modelName = new Map((models.data ?? []).map((m) => [m.id, m.name]));
   const list = useApi<Page<PartRow>>(me.role ? `/parts${qs({ q: search, category, active: "all", page, limit: LIMIT })}` : null);
 
   if (!me.role) return <NoAccess />;
@@ -33,7 +35,14 @@ export function PartsPage() {
       <PageHeader
         title="Parts catalog"
         subtitle="Master list of spare parts. Stock in, out and adjust pick from this list"
-        actions={can("company_admin", "stock_keeper") && <ButtonLink href="/parts/new">+ Add part</ButtonLink>}
+        actions={
+          <>
+            <ButtonLink href="/miner-models" variant="secondary">
+              Miner models
+            </ButtonLink>
+            {can("company_admin", "stock_keeper") && <ButtonLink href="/parts/new">+ Add part</ButtonLink>}
+          </>
+        }
       />
       <SearchBar
         value={q}
@@ -80,6 +89,7 @@ export function PartsPage() {
                 className: "whitespace-nowrap",
                 cell: (p) => p.sku,
               },
+              { header: "Fits", cell: (p) => (p.modelIds.length ? p.modelIds.map((id) => modelName.get(id)).filter(Boolean).join(", ") : "Not set") },
               { header: "Unit", cell: (p) => p.unit },
               { header: "Minimum", cell: (p) => p.minQty },
               { header: "Total stock", cell: (p) => p.totalQty },

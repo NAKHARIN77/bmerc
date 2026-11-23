@@ -41,6 +41,7 @@ const ICON_RULES: Array<[RegExp, IconName]> = [
   [/(record test|test)/i, "clipboard"],
   [/^(start repair|request parts)/i, "wrench"],
   [/^parts catalog/i, "list"],
+  [/^miner models/i, "box"],
   [/^transfers/i, "truck"],
   [/^adjust/i, "pencil"],
   [/stock/i, "box"],
