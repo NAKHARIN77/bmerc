@@ -72,6 +72,8 @@ export interface PlatformInvoice {
   taxRateBps: number;
   currency: string;
   status: "open" | "paid" | "void";
+  /** Open and past its due date (decided by the API clock). */
+  overdue: boolean;
   dueAt: string;
   paidAt: string | null;
   paymentRef: string | null;

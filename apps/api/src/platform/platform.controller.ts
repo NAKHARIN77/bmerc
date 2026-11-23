@@ -42,8 +42,40 @@ const InvoiceQuery = PageQuery.extend({
 const MarkPaidBody = z.object({ paymentRef: z.string().trim().min(2).max(200) });
 const AuditQuery = PageQuery.extend({ action: z.string().max(100).optional(), companyId: z.uuid().optional(), q: z.string().trim().max(100).optional() });
 
+const PeriodQuery = z.object({ period: z.enum(['day', 'week', 'month']).default('month') });
+const StockQuery = PageQuery.extend({ level: z.enum(['all', 'low', 'out']).default('all'), q: z.string().trim().max(100).optional(), companyId: z.uuid().optional() });
+const startedAt = new Date();
+
 const total = (i: { amountCents: number; taxCents: number }) => i.amountCents + i.taxCents;
 const monthStartUtc = (d = new Date(), back = 0) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - back, 1));
+
+/** Periods for revenue and reports: last 7 days, last 4 weeks (from Monday) or last 3 months, oldest first. */
+export function periods(kind: 'day' | 'week' | 'month', now = new Date()) {
+  const DAY = 86_400_000;
+  const day = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-GB', { ...o, timeZone: 'UTC' }).format(d);
+  const out: Array<{ from: Date; to: Date; label: string }> = [];
+  if (kind === 'day') {
+    for (let i = 6; i >= 0; i--) {
+      const from = new Date(day(now).getTime() - i * DAY);
+      out.push({ from, to: new Date(from.getTime() + DAY), label: fmt(from, { day: 'numeric', month: 'short' }) + (i === 0 ? ' (today)' : '') });
+    }
+  } else if (kind === 'week') {
+    const monday = new Date(day(now).getTime() - ((now.getUTCDay() + 6) % 7) * DAY);
+    for (let i = 3; i >= 0; i--) {
+      const from = new Date(monday.getTime() - i * 7 * DAY);
+      const to = new Date(from.getTime() + 7 * DAY);
+      const last = fmt(new Date(to.getTime() - DAY), { day: 'numeric', month: 'short' });
+      out.push({ from, to, label: `${fmt(from, { day: 'numeric', month: 'short' })} to ${last}${i === 0 ? ' (so far)' : ''}` });
+    }
+  } else {
+    for (let i = 2; i >= 0; i--) {
+      const from = monthStartUtc(now, i);
+      out.push({ from, to: monthStartUtc(now, i - 1), label: fmt(from, { month: 'short', year: 'numeric' }) + (i === 0 ? ' (this month)' : '') });
+    }
+  }
+  return out;
+}
 
 @Controller('platform')
 @PlatformOnly()
@@ -213,15 +245,129 @@ export class PlatformController {
 
   private async setStatus(me: AuthUser, id: string, status: 'active' | 'suspended', reason: string | undefined, req: Request) {
     const companyId = parse(uuid, id);
-    const c = await this.db.raw.company.findUnique({ where: { id: companyId }, select: { status: true } });
+    const c = await this.db.raw.company.findUnique({ where: { id: companyId }, select: { status: true, subscription: { select: { plan: { select: { code: true } } } } } });
     if (!c) throw notFound('Company');
     if (c.status === 'closed') throw conflict('COMPANY_CLOSED', 'This company is closed');
+    // Back to the state its plan implies: a trial stays a trial.
+    const subStatus = status === 'suspended' ? 'suspended' : c.subscription?.plan.code === 'trial' ? 'trialing' : 'active';
     await this.db.raw.$transaction([
       this.db.raw.company.update({ where: { id: companyId }, data: { status } }),
-      this.db.raw.subscription.updateMany({ where: { companyId }, data: { status: status === 'suspended' ? 'suspended' : 'active' } }),
+      this.db.raw.subscription.updateMany({ where: { companyId }, data: { status: subStatus } }),
     ]);
     await this.audit.log({ companyId, actorUserId: me.id, action: status === 'suspended' ? 'platform.company_suspended' : 'platform.company_activated', entityType: 'company', entityId: companyId, before: { status: c.status }, after: { status, reason: reason ?? null }, ip: req.ip });
     return { status };
+  }
+
+  /** Every site of every company, with teams, technicians, open jobs and parts held (owner "Sites"). */
+  @Get('sites')
+  async sites() {
+    const [sites, techs, counts, stock] = await Promise.all([
+      this.db.platform().site.findMany({
+        orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],
+        select: { id: true, name: true, country: true, province: true, status: true, company: { select: { id: true, name: true } }, teams: { select: { id: true } } },
+      }),
+      this.db.raw.user.findMany({ where: { isActive: true, role: { in: ['technician', 'head_technician'] }, teamId: { not: null } }, select: { team: { select: { siteId: true } } } }),
+      this.jobCounts(),
+      this.db.platform().siteStock.groupBy({ by: ['siteId'], where: { qty: { gt: 0 } }, _count: { _all: true } }),
+    ]);
+    const held = new Map(stock.map((s) => [s.siteId, s._count._all]));
+    return sites.map(({ teams, ...s }) => ({
+      ...s,
+      teams: teams.length,
+      technicians: techs.filter((t) => t.team?.siteId === s.id).length,
+      openJobs: counts.filter((c) => c.site_id === s.id && OPEN.includes(c.status)).reduce((a, c) => a + Number(c.jobs), 0),
+      partsInStock: held.get(s.id) ?? 0,
+    }));
+  }
+
+  /** Spare parts by site across companies (owner "Stock"). */
+  @Get('stock')
+  async stock(@Query() query: unknown) {
+    const q = parse(StockQuery, query);
+    const like = q.q ? { contains: q.q, mode: 'insensitive' as const } : undefined;
+    const rows = await this.db.platform().siteStock.findMany({
+      where: { ...(q.companyId ? { companyId: q.companyId } : {}), part: { isActive: true, ...(like ? { OR: [{ name: like }, { sku: like }] } : {}) } },
+      select: {
+        qty: true,
+        site: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
+        part: { select: { id: true, name: true, sku: true, unit: true, minQty: true } },
+      },
+      orderBy: [{ part: { name: 'asc' } }],
+    });
+    const all = rows.map((r) => ({ ...r, level: r.qty <= 0 ? 'out' : r.qty < r.part.minQty ? 'low' : 'ok' }));
+    const shown = q.level === 'all' ? all : all.filter((r) => r.level === q.level);
+    const start = (q.page - 1) * q.limit;
+    return {
+      ...paged(shown.slice(start, start + q.limit), shown.length, q),
+      counts: { skus: new Set(all.map((r) => r.part.id)).size, low: all.filter((r) => r.level === 'low').length, out: all.filter((r) => r.level === 'out').length },
+    };
+  }
+
+  /** Billed, collected and outstanding per day, week or month (owner "Monthly revenue"). */
+  @LogView('platform_revenue')
+  @Get('revenue')
+  async revenue(@Query() query: unknown) {
+    const { period } = parse(PeriodQuery, query);
+    const list = periods(period);
+    const invoices = await this.db.raw.invoice.findMany({
+      where: { status: { not: 'void' }, OR: [{ createdAt: { gte: list[0].from } }, { paidAt: { gte: list[0].from } }, { status: 'open' }] },
+      select: { amountCents: true, taxCents: true, status: true, createdAt: true, paidAt: true, dueAt: true },
+    });
+    const now = new Date();
+    const sum = (rows: typeof invoices) => rows.reduce((a, i) => a + total(i), 0);
+    return {
+      currency: 'USD',
+      rows: list.map((p) => ({
+        label: p.label,
+        billedCents: sum(invoices.filter((i) => i.createdAt >= p.from && i.createdAt < p.to)),
+        collectedCents: sum(invoices.filter((i) => i.paidAt && i.paidAt >= p.from && i.paidAt < p.to)),
+        // Invoices that fell due in this period and are still unpaid.
+        outstandingCents: sum(invoices.filter((i) => i.status === 'open' && i.dueAt >= p.from && i.dueAt < p.to && i.dueAt < now)),
+      })),
+    };
+  }
+
+  /** Owner reports: companies by plan and new companies per day, week or month. */
+  @Get('reports')
+  async reports(@Query() query: unknown) {
+    const { period } = parse(PeriodQuery, query);
+    const list = periods(period);
+    const [plans, companies] = await Promise.all([
+      this.db.raw.plan.findMany({
+        orderBy: { priceCents: 'asc' },
+        select: { name: true, priceCents: true, subscriptions: { select: { company: { select: { status: true } } } } },
+      }),
+      this.db.raw.company.findMany({ where: { createdAt: { gte: list[0].from } }, select: { createdAt: true } }),
+    ]);
+    return {
+      byPlan: plans.map((p) => {
+        const active = p.subscriptions.filter((s) => s.company.status === 'active').length;
+        return { plan: p.name, companies: p.subscriptions.length, active, monthlyBilledCents: active * p.priceCents };
+      }),
+      newCompanies: list.map((p) => ({ label: p.label, count: companies.filter((c) => c.createdAt >= p.from && c.createdAt < p.to).length })),
+    };
+  }
+
+  /** Platform health from real signals: database, API uptime, sign-ins and activity in the last 24 hours. */
+  @Get('health')
+  async health() {
+    const t0 = performance.now();
+    await this.db.raw.$queryRaw`SELECT 1`;
+    const dbMs = Math.round(performance.now() - t0);
+    const since = new Date(Date.now() - 86_400_000);
+    const [failed, logins, events, size] = await Promise.all([
+      this.db.raw.auditLog.count({ where: { action: 'auth.login_failed', createdAt: { gte: since } } }),
+      this.db.raw.auditLog.count({ where: { action: 'auth.login', createdAt: { gte: since } } }),
+      this.db.raw.auditLog.count({ where: { createdAt: { gte: since } } }),
+      this.db.raw.$queryRaw<Array<{ bytes: bigint }>>`SELECT pg_database_size(current_database())::bigint AS bytes`,
+    ]);
+    return {
+      apiStartedAt: startedAt,
+      uptimeSeconds: Math.round(process.uptime()),
+      database: { ok: true, latencyMs: dbMs, sizeBytes: Number(size[0].bytes) },
+      last24h: { logins, failedLogins: failed, auditEvents: events },
+      node: process.version,
+    };
   }
 
   @Get('plans')
@@ -263,7 +409,8 @@ export class PlatformController {
       }),
       this.db.raw.invoice.count({ where }),
     ]);
-    return paged(rows.map(({ company, ...i }) => ({ ...i, totalCents: total(i), company: { id: company.id, name: company.name }, plan: company.subscription?.plan.name ?? null })), count, q);
+    const now = new Date();
+    return paged(rows.map(({ company, ...i }) => ({ ...i, totalCents: total(i), overdue: i.status === 'open' && i.dueAt < now, company: { id: company.id, name: company.name }, plan: company.subscription?.plan.name ?? null })), count, q);
   }
 
   /** Confirm a payment by hand (bank transfer, or until the payment provider is connected). */
@@ -275,6 +422,18 @@ export class PlatformController {
     if (inv.status !== 'open') throw conflict('INVOICE_NOT_OPEN', 'Only an open invoice can be marked as paid');
     await this.db.raw.invoice.update({ where: { id: inv.id }, data: { status: 'paid', paidAt: new Date(), paymentRef, confirmedById: me.id } });
     await this.audit.log({ companyId: inv.companyId, actorUserId: me.id, action: 'platform.invoice_paid', entityType: 'invoice', entityId: inv.id, before: { status: 'open' }, after: { status: 'paid', paymentRef }, ip: req.ip });
+    return { ok: true };
+  }
+
+  /** Pending payments → Reject: the uploaded slip does not match, so it is cleared and the invoice stays open. */
+  @Post('invoices/:id/reject')
+  async rejectSlip(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
+    const { reason } = parse(ReasonBody, body ?? {});
+    const inv = await this.db.raw.invoice.findUnique({ where: { id: parse(uuid, id) }, select: { id: true, status: true, companyId: true } });
+    if (!inv) throw notFound('Invoice');
+    if (inv.status !== 'open') throw conflict('INVOICE_NOT_OPEN', 'Only an open invoice can be rejected');
+    await this.db.raw.invoice.update({ where: { id: inv.id }, data: { slipUrl: null, slipUploadedAt: null } });
+    await this.audit.log({ companyId: inv.companyId, actorUserId: me.id, action: 'platform.payment_rejected', entityType: 'invoice', entityId: inv.id, after: { reason: reason ?? null }, ip: req.ip });
     return { ok: true };
   }
 

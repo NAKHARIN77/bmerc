@@ -39,6 +39,21 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
   },
 ];
 
+// Platform owner menu (prototype OWNER_NAV). Shown only to platform owner accounts.
+const OWNER_NAV: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all", also: ["/platform/companies"] },
+  { label: "Sites", href: "/platform/sites", icon: "pin", roles: "all" },
+  { label: "Stock", href: "/platform/stock", icon: "box", roles: "all" },
+  { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
+  { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
+  { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
+  { label: "Revenue", href: "/platform/revenue", icon: "dollar", roles: "all" },
+  { label: "Payments", href: "/platform/payments", icon: "dollar", roles: "all" },
+  { label: "Pending payments", href: "/platform/pending", icon: "dollar", roles: "all" },
+  { label: "Platform health", href: "/platform/health", icon: "heart", roles: "all" },
+  { label: "Audit log", href: "/platform/audit", icon: "list", roles: "all" },
+];
+
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SessionProvider fallback={<div className="p-10 text-center text-muted">Loading…</div>}>
@@ -60,7 +75,8 @@ function Shell({ children }: { children: ReactNode }) {
     return <Suspended name={me.company.name} isAdmin={me.role === "company_admin"} logout={logout} />;
   }
 
-  const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role)) || (me.isPlatformAdmin && i.href === "/dashboard");
+  const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
+  const menu = me.isPlatformAdmin ? [{ group: "Main menu", items: OWNER_NAV }] : NAV;
   const who = me.isPlatformAdmin ? "Platform Owner" : me.role ? ROLE_LABEL[me.role] : "No role";
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
@@ -100,7 +116,7 @@ function Shell({ children }: { children: ReactNode }) {
       </header>
 
       <aside className={`fixed bottom-0 left-0 top-16 z-20 overflow-y-auto bg-white px-2 py-5 transition-[width] ${asideWidth}`}>
-        {NAV.map(({ group, items }) => {
+        {menu.map(({ group, items }) => {
           const shown = items.filter(visible);
           if (!shown.length) return null;
           return (
