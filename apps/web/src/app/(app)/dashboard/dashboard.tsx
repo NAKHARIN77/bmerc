@@ -50,6 +50,7 @@ export function Dashboard() {
           ) : undefined
         }
       />
+      {can("company_admin") && <SetupReminder />}
       <Counts />
       <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
         <NeedsAttention />
@@ -189,5 +190,20 @@ function JobCards() {
         </div>
       )}
     </>
+  );
+}
+
+/** New companies: a nudge to the setup wizard until the first site exists. */
+function SetupReminder() {
+  const sites = useApi<Array<{ id: string }>>("/sites");
+  if (!sites.data || sites.data.length > 0) return null;
+  return (
+    <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 !bg-[#e7eefe]">
+      <div>
+        <b className="text-base text-navy">Finish setting up your company</b>
+        <p className="mt-1 text-sm text-muted">Add your sites, teams and staff so you can start receiving devices.</p>
+      </div>
+      <ButtonLink href="/setup">Open setup</ButtonLink>
+    </Card>
   );
 }
