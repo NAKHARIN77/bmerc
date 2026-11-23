@@ -35,7 +35,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/users", "/stock", "/parts", "/technicians"] },
       { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
-      { label: "Subscription", href: "/settings/company", icon: "doc", roles: ["company_admin"] },
+      { label: "Subscription", href: "/subscription", icon: "doc", roles: ["company_admin"], also: ["/settings/company"] },
     ],
   },
 ];
@@ -72,7 +72,9 @@ function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [flipped, setFlipped] = useState(false);
 
-  if (me.company && me.company.status !== "active" && pathname !== "/settings/company") {
+  // A suspended company sees only this page, plus its subscription, invoices and billing details to pay.
+  const billingPage = pathname === "/settings/company" || pathname === "/subscription" || pathname.startsWith("/subscription/");
+  if (me.company && me.company.status !== "active" && !billingPage) {
     return <Suspended name={me.company.name} isAdmin={me.role === "company_admin"} logout={logout} />;
   }
 
@@ -169,7 +171,7 @@ function Suspended({ name, isAdmin, logout }: { name: string; isAdmin: boolean; 
           The subscription for {name} is not active. Pay the outstanding invoice to continue using the system. Your data is kept and nothing has been deleted.
         </p>
         {isAdmin ? (
-          <ButtonLink href="/settings/company" className="w-full">
+          <ButtonLink href="/subscription" className="w-full">
             View payment details
           </ButtonLink>
         ) : (
@@ -205,7 +207,7 @@ function QuotaBanner() {
           : `You have used ${j.used} of ${j.limit} job orders this month (${pct}%). At ${j.limit}, new devices cannot be received.`}
       </span>
       {can("company_admin") && (
-        <ButtonLink href="/settings/company" variant="secondary" className="h-9 bg-white">
+        <ButtonLink href="/subscription" variant="secondary" className="h-9 bg-white">
           Upgrade plan
         </ButtonLink>
       )}

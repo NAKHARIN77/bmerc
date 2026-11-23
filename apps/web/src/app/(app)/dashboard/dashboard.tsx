@@ -147,7 +147,7 @@ function PlanCard() {
           {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
           {row("Users", fmtLimit(data.users.used, data.users.limit))}
-          <Link href="/settings/company" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">
+          <Link href="/subscription" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">
             Open ›
           </Link>
         </>

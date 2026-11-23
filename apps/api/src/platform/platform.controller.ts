@@ -390,12 +390,29 @@ export class PlatformController {
   @Post('invoices/:id/mark-paid')
   async markPaid(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const { paymentRef } = parse(MarkPaidBody, body);
-    const inv = await this.db.raw.invoice.findUnique({ where: { id: parse(uuid, id) }, select: { id: true, status: true, companyId: true } });
+    const inv = await this.db.raw.invoice.findUnique({
+      where: { id: parse(uuid, id) },
+      select: { id: true, status: true, companyId: true, planId: true, periodStart: true, periodEnd: true, company: { select: { status: true } } },
+    });
     if (!inv) throw notFound('Invoice');
     if (inv.status !== 'open') throw conflict('INVOICE_NOT_OPEN', 'Only an open invoice can be marked as paid');
-    await this.db.raw.invoice.update({ where: { id: inv.id }, data: { status: 'paid', paidAt: new Date(), paymentRef, confirmedById: me.id } });
-    await this.audit.log({ companyId: inv.companyId, actorUserId: me.id, action: 'platform.invoice_paid', entityType: 'invoice', entityId: inv.id, before: { status: 'open' }, after: { status: 'paid', paymentRef }, ip: req.ip });
-    return { ok: true };
+    const now = new Date();
+    // Nothing else overdue: a suspended company is activated again by the payment.
+    const stillOverdue = await this.db.raw.invoice.count({ where: { companyId: inv.companyId, status: 'open', dueAt: { lt: now }, id: { not: inv.id } } });
+    const reactivate = inv.company.status === 'suspended' && stillOverdue === 0;
+    await this.db.raw.$transaction([
+      this.db.raw.invoice.update({ where: { id: inv.id }, data: { status: 'paid', paidAt: now, paymentRef, confirmedById: me.id } }),
+      // An invoice for a plan moves the company to that plan for the paid period (checkout = plan change or renewal).
+      ...(inv.planId
+        ? [this.db.raw.subscription.update({ where: { companyId: inv.companyId }, data: { planId: inv.planId, status: 'active', currentPeriodStart: inv.periodStart, currentPeriodEnd: inv.periodEnd } })]
+        : []),
+      ...(reactivate ? [this.db.raw.company.update({ where: { id: inv.companyId }, data: { status: 'active' } })] : []),
+    ]);
+    await this.audit.log({
+      companyId: inv.companyId, actorUserId: me.id, action: 'platform.invoice_paid', entityType: 'invoice', entityId: inv.id,
+      before: { status: 'open' }, after: { status: 'paid', paymentRef, planId: inv.planId, reactivated: reactivate }, ip: req.ip,
+    });
+    return { ok: true, reactivated: reactivate };
   }
 
   /** Pending payments → Reject: the uploaded slip does not match, so it is cleared and the invoice stays open. */
