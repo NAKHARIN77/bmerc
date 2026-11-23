@@ -39,16 +39,16 @@ export function JobsPage() {
   const subtitle = can("head_technician", "technician")
     ? "Jobs at your team's site that nobody has taken yet, or that someone in your team holds"
     : me.siteIds === null
-      ? "Repair jobs across all sites"
-      : "Repair jobs at your sites";
+      ? "Active hardware in repair across all sites"
+      : "Active hardware in repair at your sites";
 
   return (
     <>
       <PageHeader title="Jobs" subtitle={subtitle} />
       <KpiRow>
-        <Kpi label="All jobs" value={s?.total ?? "—"} caption="Active and historic" icon="wrench" />
-        <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="On the bench now" tone="info" icon="wrench" />
-        <Kpi label="Waiting & intake" value={s ? s.byStatus.todo + s.byStatus.waiting_parts : "—"} caption="Pending triage or parts" tone="warn" />
+        <Kpi label="All jobs" value={s?.total ?? "—"} caption="Active and historic" />
+        <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="Active bench diagnostics" tone="info" />
+        <Kpi label="Waiting & intake" value={s ? s.byStatus.todo + s.byStatus.waiting_parts : "—"} caption="Pending triage" tone="warn" />
       </KpiRow>
 
       <SearchBar
@@ -60,7 +60,7 @@ export function JobsPage() {
         placeholder="Search ticket, serial or customer"
       >
         {manySites && (
-          <div className="w-full sm:w-[240px]">
+          <div className="w-full sm:w-[180px]">
             <Select
               aria-label="Site"
               value={siteId}
@@ -116,15 +116,6 @@ export function JobsPage() {
                 className: "min-w-[140px]",
                 cell: (j) => j.customer.name,
               },
-              ...(manySites
-                ? [
-                    {
-                      header: "Site",
-                      className: "min-w-[150px]",
-                      cell: (j: JobRow) => j.site.name,
-                    },
-                  ]
-                : []),
               {
                 header: "Status",
                 className: "whitespace-nowrap",

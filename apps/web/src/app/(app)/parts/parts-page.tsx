@@ -21,11 +21,10 @@ export function PartsPage() {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
-  const [active, setActive] = useState<"true" | "false" | "all">("true");
-  const [page, setPage] = useState(1);
+    const [page, setPage] = useState(1);
   const search = useDebounced(q.trim());
   const categories = useApi<string[]>(me.role ? "/parts/categories" : null);
-  const list = useApi<Page<PartRow>>(me.role ? `/parts${qs({ q: search, category, active, page, limit: LIMIT })}` : null);
+  const list = useApi<Page<PartRow>>(me.role ? `/parts${qs({ q: search, category, active: "all", page, limit: LIMIT })}` : null);
 
   if (!me.role) return <NoAccess />;
 
@@ -33,9 +32,7 @@ export function PartsPage() {
     <>
       <PageHeader
         title="Parts catalog"
-        subtitle={
-          me.siteIds === null ? "Master list of spare parts and their stock across all sites" : "Master list of spare parts. Stock shows only your sites"
-        }
+        subtitle="Master list of spare parts. Stock in, out and adjust pick from this list"
         actions={can("company_admin", "stock_keeper") && <ButtonLink href="/parts/new">+ Add part</ButtonLink>}
       />
       <SearchBar
@@ -46,7 +43,7 @@ export function PartsPage() {
         }}
         placeholder="Search part name or SKU"
       >
-        <div className="w-full sm:w-[220px]">
+        <div className="w-full sm:w-[180px]">
           <Select
             aria-label="Category"
             value={category}
@@ -59,20 +56,6 @@ export function PartsPage() {
             {(categories.data ?? []).map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </Select>
-        </div>
-        <div className="w-full sm:w-[200px]">
-          <Select
-            aria-label="Show"
-            value={active}
-            onChange={(e) => {
-              setActive(e.target.value as typeof active);
-              setPage(1);
-            }}
-          >
-            <option value="true">Parts in use</option>
-            <option value="false">Retired parts</option>
-            <option value="all">All parts</option>
           </Select>
         </div>
       </SearchBar>
@@ -104,7 +87,6 @@ export function PartsPage() {
             ]}
           />
           <Pager page={list.data.page} limit={list.data.limit} total={list.data.total} onPage={setPage} />
-          <p className="mt-2 text-xs text-muted">Low means at least one site is below the minimum.</p>
         </>
       )}
     </>

@@ -71,15 +71,10 @@ export function CustomerPage() {
       />
       {error && <Alert>{error}</Alert>}
       <KpiRow>
-        <Kpi label="Jobs" value={summary.data?.total ?? "—"} caption="All repair jobs" icon="wrench" />
-        <Kpi label="Open jobs" value={summary.data?.open ?? "—"} caption="Not yet passed QC" tone="warn" icon="wrench" />
+        <Kpi label="Jobs" value={summary.data?.total ?? "—"} caption="All repair jobs" />
+        <Kpi label="Open jobs" value={summary.data?.open ?? "—"} caption="Not yet passed QC" tone="warn" />
         <Kpi label="Country" value={c.country ?? "—"} caption="Customer location" tone="info" />
       </KpiRow>
-      {(c.contactName || c.phone) && (
-        <p className="mb-4 text-sm text-muted">
-          Contact: {[c.contactName, c.phone].filter(Boolean).join(" · ")}
-        </p>
-      )}
       {jobs.error ? (
         <ErrorState error={jobs.error} onRetry={jobs.reload} />
       ) : !jobs.data ? (

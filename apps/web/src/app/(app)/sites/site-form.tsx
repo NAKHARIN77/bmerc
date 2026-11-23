@@ -14,6 +14,12 @@ const TEXT = ["country", "province", "address"] as const;
 
 /** /sites/new and /sites/[id]/edit. */
 export function SiteFormPage({ mode }: { mode: "new" | "edit" }) {
+  // A fresh start on every visit by link: Next keeps visited pages alive, and an edit form must never show old values.
+  const { bfcacheId } = useRouter();
+  return <SiteFormLoader key={bfcacheId} mode={mode} />;
+}
+
+function SiteFormLoader({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams<{ id?: string }>();
   const { can } = useSession();
   const existing = useApi<Site>(mode === "edit" && can("company_admin") ? `/sites/${id}` : null);
@@ -22,7 +28,8 @@ export function SiteFormPage({ mode }: { mode: "new" | "edit" }) {
     if (existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
     if (!existing.data) return <Loading />;
   }
-  return <SiteForm key={existing.data?.id ?? "new"} site={existing.data ?? null} />;
+  // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
+  return <SiteForm key={existing.data ? JSON.stringify(existing.data) : "new"} site={existing.data ?? null} />;
 }
 
 function SiteForm({ site }: { site: Site | null }) {

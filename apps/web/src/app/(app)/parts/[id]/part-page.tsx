@@ -6,7 +6,7 @@ import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { PartDetail } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
-import { ButtonLink, CellLink, Chip, ErrorState, Kpi, KpiRow, Loading, PageHeader, SectionTitle, Table } from "@/components/ui";
+import { ButtonLink, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, SectionTitle, Table } from "@/components/ui";
 
 const TYPE = { in: "Stock in", out: "Stock out", adjust: "Adjust" } as const;
 
@@ -38,7 +38,7 @@ export function PartPage() {
     <>
       <PageHeader
         title={p.name}
-        subtitle={`${p.sku} · Unit: ${p.unit} · Minimum: ${p.minQty}${p.category ? ` · ${p.category}` : ""}`}
+        subtitle={`${p.sku} · Unit: ${p.unit} · Minimum: ${p.minQty}`}
         actions={
           <>
             {back}
@@ -47,12 +47,12 @@ export function PartPage() {
         }
       />
       <KpiRow>
-        <Kpi label="Total stock" value={total} caption={me.siteIds === null ? "All sites" : "Your sites"} icon="box" />
-        <Kpi label="Minimum" value={p.minQty} caption="Required level per site" tone="info" icon="box" />
+        <Kpi label="Total stock" value={total} caption={me.siteIds === null ? "All sites" : "Your sites"} />
+        <Kpi label="Minimum" value={p.minQty} caption="Required level" tone="info" />
         <Kpi
           label="Status"
           value={!p.isActive ? "Retired" : low ? "Low" : "OK"}
-          caption={!p.isActive ? "No longer stocked" : low ? "A site is below minimum" : "Current"}
+          caption={!p.isActive ? "No longer stocked" : "Current"}
           tone={!p.isActive ? "neutral" : low ? "warn" : "success"}
         />
       </KpiRow>
@@ -63,7 +63,6 @@ export function PartPage() {
         columns={[
           { header: "Site", cell: (s) => s.site.name },
           { header: "Qty", cell: (s) => s.qty },
-          { header: "Status", cell: (s) => (s.qty === 0 ? <Chip tone="danger">Out</Chip> : s.belowMin ? <Chip tone="danger">Low</Chip> : <Chip tone="success">OK</Chip>) },
         ]}
       />
       <SectionTitle className="mt-6">Recent movements</SectionTitle>

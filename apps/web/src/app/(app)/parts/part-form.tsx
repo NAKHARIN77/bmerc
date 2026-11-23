@@ -11,6 +11,12 @@ import { ButtonLink, ErrorState, Field, FormCard, Input, Loading, PageHeader } f
 
 /** /parts/new and /parts/[id]/edit (company admins and stock keepers). */
 export function PartFormPage({ mode }: { mode: "new" | "edit" }) {
+  // A fresh start on every visit by link: Next keeps visited pages alive, and an edit form must never show old values.
+  const { bfcacheId } = useRouter();
+  return <PartFormLoader key={bfcacheId} mode={mode} />;
+}
+
+function PartFormLoader({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams<{ id?: string }>();
   const { can } = useSession();
   const allowed = can("company_admin", "stock_keeper");
@@ -21,7 +27,8 @@ export function PartFormPage({ mode }: { mode: "new" | "edit" }) {
     if (existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
     if (!existing.data) return <Loading />;
   }
-  return <PartForm key={existing.data?.id ?? "new"} part={existing.data ?? null} categories={categories.data ?? []} />;
+  // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
+  return <PartForm key={existing.data ? JSON.stringify(existing.data) : "new"} part={existing.data ?? null} categories={categories.data ?? []} />;
 }
 
 function PartForm({ part, categories }: { part: PartDetail | null; categories: string[] }) {

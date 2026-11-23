@@ -33,9 +33,9 @@ export function CustomersPage() {
         actions={can("company_admin") && <ButtonLink href="/customers/new">+ Add customer</ButtonLink>}
       />
       <KpiRow>
-        <Kpi label="Total customers" value={s?.customers ?? "—"} caption="On record" icon="building" />
+        <Kpi label="Total customers" value={s?.customers ?? "—"} caption="On record" />
         <Kpi label="Devices in" value={s?.devicesIn ?? "—"} caption="Not yet returned" tone="info" />
-        <Kpi label="Open jobs" value={s?.openJobs ?? "—"} caption="In progress" tone="warn" icon="wrench" />
+        <Kpi label="Open jobs" value={s?.openJobs ?? "—"} caption="In progress" tone="warn" />
       </KpiRow>
       <SearchBar
         value={q}
@@ -43,7 +43,7 @@ export function CustomersPage() {
           setQ(v);
           setPage(1);
         }}
-        placeholder="Search by customer name"
+        placeholder="Search by customer"
       />
       {s && s.countries.length > 1 && (
         <Pills
@@ -70,7 +70,6 @@ export function CustomersPage() {
             columns={[
               { header: "Customer", cell: (c) => <CellLink href={`/customers/${c.id}`}>{c.name}</CellLink> },
               { header: "Country", cell: (c) => c.country ?? "—" },
-              { header: "Devices", cell: (c) => c.devices },
               { header: "Open jobs", cell: (c) => c.openJobs },
             ]}
           />

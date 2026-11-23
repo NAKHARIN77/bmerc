@@ -9,7 +9,7 @@ import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
-import { Card, ErrorState, Kpi, Loading, PageHeader, Pills, SearchBar, SectionTitle } from "@/components/ui";
+import { Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -33,7 +33,7 @@ export function Dashboard() {
     <>
       <PageHeader title="Overview" subtitle="Your repair center at a glance" />
       <Counts />
-      <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : ""}`}>
+      <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
         <NeedsAttention />
         {can("company_admin") && <PlanCard />}
       </div>
@@ -49,12 +49,12 @@ function Counts() {
   const low = parts.data?.items.filter((p) => p.belowMin).length;
   if (summary.error) return <ErrorState error={summary.error} onRetry={summary.reload} />;
   return (
-    <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <Kpi label="Open jobs" value={s?.open ?? "—"} caption="Not yet passed QC" tone="info" icon="wrench" />
-      <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="Being repaired now" icon="wrench" />
-      <Kpi label="Waiting parts" value={s?.byStatus.waiting_parts ?? "—"} caption="Waiting for spare parts" tone="warn" icon="box" />
-      <Kpi label="Low stock" value={low ?? "—"} caption="Below minimum level, by site" tone="danger" icon="box" />
-    </div>
+    <KpiRow>
+      <Kpi label="Open jobs" value={s?.open ?? "—"} caption="Not yet passed QC" tone="info" />
+      <Kpi label="In repair" value={s?.byStatus.in_repair ?? "—"} caption="Being repaired now" />
+      <Kpi label="Waiting parts" value={s?.byStatus.waiting_parts ?? "—"} caption="Waiting for spare parts" tone="warn" />
+      <Kpi label="Low stock" value={low ?? "—"} caption="Below minimum level, by site" tone="danger" />
+    </KpiRow>
   );
 }
 
@@ -74,7 +74,8 @@ function NeedsAttention() {
   const list = (jobs.data?.items ?? []).filter((j) => reason(j)).slice(0, 5);
   return (
     <div>
-      <SectionTitle>Needs attention</SectionTitle>
+      <b className="text-base">Needs attention</b>
+      <div className="mt-3">
       {jobs.error ? (
         <ErrorState error={jobs.error} onRetry={jobs.reload} />
       ) : !jobs.data ? (
@@ -82,22 +83,19 @@ function NeedsAttention() {
       ) : list.length === 0 ? (
         <Card className="text-sm text-muted">Nothing needs attention right now.</Card>
       ) : (
-        <div className="space-y-3">
-          {list.map((j) => (
-            <Card key={j.id} className="py-4">
-              <div className="font-semibold text-ink">
-                {j.number} · {j.device.model}
-              </div>
-              <div className={`text-sm ${j.status === "unrepairable" ? "text-danger" : "text-muted"}`}>
-                {reason(j)} · {j.customer.name}
-              </div>
-              <Link href={`/jobs/${j.id}`} className="mt-1 inline-block text-sm font-semibold text-info hover:underline">
-                Open ›
-              </Link>
-            </Card>
-          ))}
-        </div>
+        list.map((j) => (
+          <Link key={j.id} href={`/jobs/${j.id}`} className="mb-2.5 block rounded-xl bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,99,152,.2)]">
+            <b>
+              {j.number} · {j.device.model}
+            </b>
+            <div className="mt-1 text-[13px] text-muted">
+              {reason(j)} · {j.customer.name}
+            </div>
+            <div className="mt-3 text-[13px] font-semibold text-info">Open ›</div>
+          </Link>
+        ))
       )}
+      </div>
     </div>
   );
 }
@@ -105,23 +103,24 @@ function NeedsAttention() {
 function PlanCard() {
   const { data } = useApi<Usage>("/company/usage");
   const row = (label: string, value: string) => (
-    <div className="flex justify-between border-t border-line py-2 text-sm text-muted">
+    <div className="flex justify-between border-t-[0.5px] border-line py-2 text-[13px] text-muted">
       <span>{label}</span>
-      <b className="whitespace-nowrap text-ink">{value}</b>
+      <b className="whitespace-nowrap text-navy">{value}</b>
     </div>
   );
   return (
     <Card>
-      <h2 className="text-base font-semibold text-ink">Your plan</h2>
+      <b className="text-base">Your plan</b>
       {!data ? (
         <Loading />
       ) : (
         <>
           <div className="my-2 text-[28px] font-bold text-navy">{data.plan?.name ?? "No plan"}</div>
+          <div className="mb-3.5" />
           {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
           {row("Users", fmtLimit(data.users.used, data.users.limit))}
-          <Link href="/settings/company" className="mt-3 inline-block text-sm font-semibold text-info hover:underline">
+          <Link href="/settings/company" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">
             Open ›
           </Link>
         </>
@@ -146,21 +145,19 @@ function JobCards() {
       ) : jobs.data.items.length === 0 ? (
         <Card className="text-sm text-muted">{search || status !== "all" ? "No jobs match." : "No jobs you can see yet."}</Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
           {jobs.data.items.map((j) => (
-            <Card key={j.id} className="py-4">
+            <Link key={j.id} href={`/jobs/${j.id}`} className="block rounded-xl bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,99,152,.2)]">
               <div className="text-xs font-semibold text-info">{j.number}</div>
-              <div className="font-semibold text-ink">{j.device.model}</div>
-              <div className="mb-2 text-sm text-muted">
+              <b className="my-1.5 block">{j.device.model}</b>
+              <div className="text-[13px] text-muted">
                 {j.customer.name} · {j.site.name}
               </div>
-              <StatusChip status={j.status} />
-              <div>
-                <Link href={`/jobs/${j.id}`} className="mt-2 inline-block text-sm font-semibold text-info hover:underline">
-                  Open ›
-                </Link>
+              <div className="mt-2.5">
+                <StatusChip status={j.status} />
               </div>
-            </Card>
+              <div className="mt-3 text-[13px] font-semibold text-info">Open ›</div>
+            </Link>
           ))}
         </div>
       )}

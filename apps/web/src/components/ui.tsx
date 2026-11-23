@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       className={cx(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         VARIANT[variant],
         className,
       )}
@@ -77,10 +77,10 @@ export const Card = ({ className, children }: { className?: string; children: Re
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 className="text-[26px] font-bold leading-tight text-navy">{title}</h1>
-        {subtitle && <p className="mt-1 text-muted">{subtitle}</p>}
+        <h1 className="mb-1 text-2xl font-semibold leading-[1.2] text-navy">{title}</h1>
+        {subtitle && <p className="text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
     </div>
@@ -101,21 +101,30 @@ export function Chip({ tone = "neutral", children }: { tone?: Tone; children: Re
   const t = TONE[tone];
   return (
     <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", t.text, t.bg)}>
-      <span className={cx("h-1.5 w-1.5 rounded-full", t.dot)} />
+      <span className={cx("h-[7px] w-[7px] rounded-full", t.dot)} />
       {children}
     </span>
   );
 }
 
-export function Kpi({ label, value, caption, tone = "navy", icon = "dot" }: { label: string; value: ReactNode; caption?: string; tone?: Tone; icon?: IconName }) {
+// Same rule as the prototype: the label decides the icon.
+const kpiIcon = (label: string): IconName => {
+  const k = label.toUpperCase();
+  if (/JOB|TICKET|REPAIR|QUEUE|OPEN/.test(k)) return "wrench";
+  if (/STOCK|PART|SKU|MINIMUM/.test(k)) return "box";
+  if (/COMPANIES|SITE|TEAM|CUSTOMER|TECHNICIAN|USERS/.test(k)) return "building";
+  return "dot";
+};
+
+export function Kpi({ label, value, caption, tone = "navy", icon }: { label: string; value: ReactNode; caption?: string; tone?: Tone; icon?: IconName }) {
   return (
     <Card>
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted">
-        <Icon name={icon} size={14} className="text-info" />
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.04em] text-muted">
+        <Icon name={icon ?? kpiIcon(label)} size={14} className="text-info" />
         {label}
       </div>
-      <div className={cx("mt-1 text-3xl font-bold", TONE[tone].text)}>{value}</div>
-      {caption && <div className={cx("mt-0.5 text-xs font-semibold", tone === "navy" ? "text-ink" : TONE[tone].text)}>{caption}</div>}
+      <div className={cx("my-1 text-[36px] font-bold leading-[44px]", TONE[tone].text)}>{value}</div>
+      {caption && <div className={cx("text-xs font-semibold", TONE[tone].text)}>{caption}</div>}
     </Card>
   );
 }
@@ -159,7 +168,7 @@ export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", on
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-muted">
+              <td colSpan={columns.length} className="p-4 py-8 text-center text-muted">
                 {empty}
               </td>
             </tr>
@@ -168,10 +177,10 @@ export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", on
               <tr
                 key={rowKey(r)}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
-                className={cx("border-t border-soft", onRowClick && "cursor-pointer hover:bg-field")}
+                className={cx("border-t border-soft", onRowClick && "cursor-pointer hover:bg-[#eef4ff]")}
               >
                 {columns.map((c) => (
-                  <td key={c.header} className={cx("px-4 py-3.5 align-middle", c.className)}>
+                  <td key={c.header} className={cx("p-4 align-middle", c.className)}>
                     {c.cell(r)}
                   </td>
                 ))}
@@ -204,7 +213,7 @@ export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => v
 /** Previous / next for paged lists ({ items, page, limit, total } from the API). */
 export function Pager({ page, limit, total, onPage }: { page: number; limit: number; total: number; onPage: (page: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / limit));
-  if (total <= limit) return <p className="mt-3 text-xs text-muted">{total === 1 ? "1 result" : `${total} results`}</p>;
+  if (total <= limit) return null;
   const from = (page - 1) * limit + 1;
   const to = Math.min(total, page * limit);
   return (
@@ -232,7 +241,7 @@ export function ButtonLink({ href, variant = "primary", className, children }: {
   return (
     <Link
       href={href}
-      className={cx("inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors", VARIANT[variant], className)}
+      className={cx("inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-colors", VARIANT[variant], className)}
     >
       {children}
     </Link>
@@ -247,7 +256,7 @@ export const CellLink = ({ href, children }: { href: string; children: ReactNode
 );
 
 /** Row of three or four KPI cards. */
-export const KpiRow = ({ children }: { children: ReactNode }) => <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
+export const KpiRow = ({ children }: { children: ReactNode }) => <div className="my-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
 
 /** Full-width search box above a list (no label, like the prototype). */
 export function SearchBar({ value, onChange, placeholder, children }: { value: string; onChange: (v: string) => void; placeholder: string; children?: ReactNode }) {
@@ -277,7 +286,7 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "h-10 rounded-lg px-4 text-sm font-semibold transition-colors",
+            "h-9 rounded-lg px-4 text-sm font-semibold shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-colors",
             o.value === value ? "bg-primary text-white" : "bg-field text-navy hover:bg-soft",
           )}
         >
@@ -289,7 +298,7 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
 }
 
 export const SectionTitle = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <h2 className={cx("mb-3 text-base font-semibold text-ink", className)}>{children}</h2>
+  <h2 className={cx("mb-3 text-base font-bold text-ink", className)}>{children}</h2>
 );
 
 /** Form page body: a white card, at most 720px wide, with Cancel + Save at the bottom right. */
@@ -322,11 +331,11 @@ export function FormCard({ children, error, cancelHref, submitLabel, busy, onSub
 /** Label above value, as in the prototype detail cards. */
 export function Facts({ items, cols = 2 }: { items: Array<[string, ReactNode]>; cols?: 2 | 3 }) {
   return (
-    <dl className={cx("grid gap-x-6 gap-y-4", cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+    <dl className={cx("grid gap-[18px]", cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
       {items.map(([k, v]) => (
         <div key={k}>
-          <dt className="text-xs text-muted">{k}</dt>
-          <dd className="break-words text-sm font-semibold text-ink">{v}</dd>
+          <dt className="text-xs font-medium text-muted">{k}</dt>
+          <dd className="break-words text-sm font-medium text-ink">{v}</dd>
         </div>
       ))}
     </dl>

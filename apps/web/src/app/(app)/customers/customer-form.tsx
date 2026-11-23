@@ -14,6 +14,12 @@ const TEXT = ["contactName", "email", "phone", "country"] as const;
 
 /** /customers/new and /customers/[id]/edit. */
 export function CustomerFormPage({ mode }: { mode: "new" | "edit" }) {
+  // A fresh start on every visit by link: Next keeps visited pages alive, and an edit form must never show old values.
+  const { bfcacheId } = useRouter();
+  return <CustomerFormLoader key={bfcacheId} mode={mode} />;
+}
+
+function CustomerFormLoader({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams<{ id?: string }>();
   const { can } = useSession();
   const existing = useApi<CustomerDetail>(mode === "edit" && can("company_admin") ? `/customers/${id}` : null);
@@ -22,7 +28,8 @@ export function CustomerFormPage({ mode }: { mode: "new" | "edit" }) {
     if (existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
     if (!existing.data) return <Loading />;
   }
-  return <CustomerForm key={existing.data?.id ?? "new"} customer={existing.data ?? null} />;
+  // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
+  return <CustomerForm key={existing.data ? JSON.stringify(existing.data) : "new"} customer={existing.data ?? null} />;
 }
 
 function CustomerForm({ customer }: { customer: CustomerDetail | null }) {
@@ -65,7 +72,7 @@ function CustomerForm({ customer }: { customer: CustomerDetail | null }) {
     <>
       <PageHeader
         title={customer ? `Edit ${customer.name}` : "New customer"}
-        subtitle={customer ? "Change the customer details" : "Add a customer company or person who sends devices in"}
+        subtitle={customer ? "Change the customer details" : "Add a customer company"}
         actions={
           <ButtonLink href={back} variant="secondary">
             Cancel

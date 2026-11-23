@@ -17,15 +17,23 @@
   --color-field: #f0f3ff;
   --color-soft: #eef1f8;
   --color-line: #e2e8f8;
+
+  /* The prototype uses the browser's normal line height everywhere, not Tailwind's 1.5. */
+  --text-xs--line-height: normal;
+  --text-sm--line-height: normal;
+  --text-base--line-height: normal;
+  --text-lg--line-height: normal;
+  --text-xl--line-height: normal;
+  --text-2xl--line-height: normal;
 }
 
 html {
   color-scheme: light;
+  line-height: normal;
 }
 
 body {
   background: var(--color-page);
   color: var(--color-ink);
   font-size: 14px;
-  font-variant-numeric: tabular-nums;
 }

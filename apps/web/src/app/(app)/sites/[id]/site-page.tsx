@@ -7,7 +7,7 @@ import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { JobRow, Page, PartRow, Site, Team } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
-import { SiteStatusChip, StatusChip } from "@/components/chips";
+import { StatusChip } from "@/components/chips";
 import { ButtonLink, CellLink, Chip, ErrorState, Loading, PageHeader, Pills, Table } from "@/components/ui";
 
 type Tab = "teams" | "technicians" | "jobs" | "stock";
@@ -51,7 +51,7 @@ export function SitePage() {
     <>
       <PageHeader
         title={s.name}
-        subtitle={["Site detail", [s.province, s.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}
+        subtitle="Site detail"
         actions={
           <>
             {back}
@@ -63,10 +63,6 @@ export function SitePage() {
           </>
         }
       />
-      <div className="mb-4 flex items-center gap-3">
-        <SiteStatusChip status={s.status} />
-        {s.address && <span className="text-sm text-muted">{s.address}</span>}
-      </div>
       <Pills label="Site sections" options={TABS} value={tab} onChange={setTab} />
 
       {tab === "teams" &&
@@ -81,7 +77,6 @@ export function SitePage() {
               { header: "Team", cell: (t) => (can("company_admin", "site_manager") ? <CellLink href={`/teams/${t.id}/edit`}>{t.name}</CellLink> : t.name) },
               { header: "Head technician", cell: (t) => t.members.find((m) => m.id === t.headUserId)?.fullName ?? "Not set" },
               { header: "Technicians", cell: (t) => t.members.length },
-              { header: "Jobs open", cell: (t) => t.jobsOpen },
             ]}
           />
         ))}

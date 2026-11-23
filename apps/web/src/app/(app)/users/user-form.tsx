@@ -12,6 +12,12 @@ import { ButtonLink, ErrorState, Field, FormCard, Input, Loading, PageHeader, Se
 
 /** /users/new (invite) and /users/[id]/edit. Company admins only. */
 export function UserFormPage({ mode }: { mode: "new" | "edit" }) {
+  // A fresh start on every visit by link: Next keeps visited pages alive, and an edit form must never show old values.
+  const { bfcacheId } = useRouter();
+  return <UserFormLoader key={bfcacheId} mode={mode} />;
+}
+
+function UserFormLoader({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams<{ id?: string }>();
   const { me, can } = useSession();
   const isAdmin = can("company_admin");
@@ -22,7 +28,8 @@ export function UserFormPage({ mode }: { mode: "new" | "edit" }) {
   const err = user.error ?? sites.error ?? teams.error;
   if (err) return <ErrorState error={err} />;
   if ((mode === "edit" && !user.data) || !sites.data || !teams.data) return <Loading />;
-  return <UserForm key={user.data?.id ?? "new"} user={user.data ?? null} isSelf={user.data?.id === me.id} sites={sites.data} teams={teams.data} />;
+  // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
+  return <UserForm key={user.data ? JSON.stringify(user.data) : "new"} user={user.data ?? null} isSelf={user.data?.id === me.id} sites={sites.data} teams={teams.data} />;
 }
 
 function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf: boolean; sites: Site[]; teams: Team[] }) {

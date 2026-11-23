@@ -40,7 +40,7 @@ export function SitesPage() {
         }
       />
       <KpiRow>
-        <Kpi label="Total sites" value={sites.data ? all.length : "—"} caption="Registered locations" icon="building" />
+        <Kpi label="Total sites" value={sites.data ? all.length : "—"} caption="Registered locations" />
         <Kpi label="Active" value={sites.data ? active : "—"} caption="Taking repair jobs" tone="success" />
         <Kpi label="Setup / inactive" value={sites.data ? all.length - active : "—"} caption="Not taking jobs" tone="warn" />
       </KpiRow>

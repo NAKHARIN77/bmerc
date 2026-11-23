@@ -12,6 +12,12 @@ import { Alert, Button, ButtonLink, ErrorState, Field, FormCard, Input, Loading,
 
 /** /teams/new and /teams/[id]/edit (company admins and site managers). */
 export function TeamFormPage({ mode }: { mode: "new" | "edit" }) {
+  // A fresh start on every visit by link: Next keeps visited pages alive, and an edit form must never show old values.
+  const { bfcacheId } = useRouter();
+  return <TeamFormLoader key={bfcacheId} mode={mode} />;
+}
+
+function TeamFormLoader({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams<{ id?: string }>();
   const { can } = useSession();
   const allowed = can("company_admin", "site_manager");
@@ -25,7 +31,8 @@ export function TeamFormPage({ mode }: { mode: "new" | "edit" }) {
   if (!teams.data || !sites.data || !users.data) return <Loading />;
   const team = mode === "edit" ? teams.data.find((t) => t.id === id) : null;
   if (mode === "edit" && !team) return <ErrorState error={new Error("Team not found")} />;
-  return <TeamForm key={team?.id ?? "new"} team={team ?? null} sites={sites.data} teams={teams.data} users={users.data} canMoveSite={can("company_admin")} />;
+  // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
+  return <TeamForm key={team ? JSON.stringify(team) : "new"} team={team ?? null} sites={sites.data} teams={teams.data} users={users.data} canMoveSite={can("company_admin")} />;
 }
 
 function TeamForm({ team, sites, teams, users, canMoveSite }: { team: Team | null; sites: Site[]; teams: Team[]; users: UserRow[]; canMoveSite: boolean }) {

@@ -54,17 +54,20 @@ function Shell({ children }: { children: ReactNode }) {
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
   const whenExpanded = flipped ? "inline lg:hidden" : "hidden lg:inline";
+  const labelWhenExpanded = flipped ? "block lg:hidden" : "hidden lg:block";
   const asideWidth = flipped ? "w-64 lg:w-[72px]" : "w-[72px] lg:w-64";
   const mainMargin = flipped ? "lg:ml-[72px]" : "lg:ml-64";
+  // Icon rail: icons centred with no side padding, as in the prototype.
+  const linkPad = flipped ? "px-5 lg:justify-center lg:px-0" : "justify-center px-0 lg:justify-start lg:px-5";
 
   return (
     <div className="min-h-screen">
-      <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-white px-4 shadow-[0_1px_0_#eef1f8] sm:px-6">
+      <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-white px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setFlipped((f) => !f)}
             aria-label="Show or hide menu"
-            className="flex h-9 w-10 items-center justify-center rounded-lg bg-field text-navy"
+            className="flex h-9 w-10 items-center justify-center rounded-lg bg-field text-navy shadow-[0_1px_2px_rgba(0,0,0,.05)]"
           >
             <Icon name="menu" />
           </button>
@@ -82,13 +85,13 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <aside className={`fixed bottom-0 left-0 top-16 z-20 overflow-y-auto bg-white px-2 py-5 shadow-[1px_0_0_#eef1f8] transition-[width] ${asideWidth}`}>
+      <aside className={`fixed bottom-0 left-0 top-16 z-20 overflow-y-auto bg-white px-2 py-5 transition-[width] ${asideWidth}`}>
         {NAV.map(({ group, items }) => {
           const shown = items.filter(visible);
           if (!shown.length) return null;
           return (
-            <div key={group} className="mb-4">
-              <div className={`px-4 pb-2 text-[11px] font-bold uppercase tracking-wide text-muted ${whenExpanded}`}>{group}</div>
+            <div key={group}>
+              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{group}</div>
               {shown.map((i) => {
                 const active = pathname === i.href || pathname.startsWith(`${i.href}/`);
                 return (
@@ -98,11 +101,13 @@ function Shell({ children }: { children: ReactNode }) {
                     title={i.label}
                     aria-current={active ? "page" : undefined}
                     onClick={() => flipped && window.innerWidth < 1024 && setFlipped(false)}
-                    className={`mb-1 flex h-11 items-center gap-2.5 rounded-lg px-[15px] text-sm ${
+                    className={`mb-1 flex h-11 items-center gap-2.5 rounded-lg text-sm ${linkPad} ${
                       active ? "bg-primary font-semibold text-white" : "text-muted hover:bg-field"
                     }`}
                   >
-                    <Icon name={i.icon} className="shrink-0" />
+                    <span className="flex w-5 shrink-0 justify-center">
+                      <Icon name={i.icon} />
+                    </span>
                     <span className={`truncate ${whenExpanded}`}>{i.label}</span>
                   </Link>
                 );
@@ -112,8 +117,8 @@ function Shell({ children }: { children: ReactNode }) {
         })}
       </aside>
 
-      <main className={`ml-[72px] pt-16 transition-[margin] ${mainMargin}`}>
-        <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+      <main className={`ml-[72px] min-h-screen pt-16 transition-[margin] ${mainMargin}`}>
+        <div className="px-4 pb-12 pt-6 sm:px-6">
           {me.company && me.company.status !== "active" ? <Suspended name={me.company.name} /> : children}
         </div>
       </main>
