@@ -12,9 +12,12 @@ import { PartsModule } from './parts/parts.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { StockModule } from './stock/stock.module.js';
 import { DevicesModule } from './devices/devices.module.js';
+import { PlatformModule } from './platform/platform.module.js';
+import { ReportsModule } from './reports/reports.module.js';
+import { BillingModule } from './billing/billing.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule, StockModule, DevicesModule],
+  imports: [PrismaModule, AuthModule, CompanyModule, UsersModule, CustomersModule, SitesModule, TeamsModule, PartsModule, JobsModule, StockModule, DevicesModule, PlatformModule, ReportsModule, BillingModule],
   controllers: [AppController],
 })
 export class AppModule {}

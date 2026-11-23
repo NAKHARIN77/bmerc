@@ -95,7 +95,8 @@ export interface JobDetail extends Omit<JobRow, "tests" | "qrPrintLogs"> {
   device: JobRow["device"] & { hashrateTh: string | number | null; qrCode: string | null };
   customer: { id: string; name: string; contactName: string | null; email: string | null; phone: string | null };
   events: Array<{ id: string; fromStatus: JobStatus | null; toStatus: JobStatus; actorId: string | null; by: string | null; note: string | null; createdAt: string }>;
-  can: { assign: boolean; work: boolean; dispatch: boolean; parts: boolean };
+  can: { assign: boolean; work: boolean; dispatch: boolean; parts: boolean; bill: boolean };
+  invoice: { id: string; number: string; status: "unpaid" | "partial" | "paid" | "void"; currency: string; totalCents: number; paidCents: number } | null;
   tests: Array<{ id: string; testedOn: string; testedBy: string | null; workDone: string | null; results: Record<TestItem, TestValue>; passed: boolean; createdAt: string }>;
   qrPrintLogs: Array<{ id: string; by: string | null; copies: number; printedAt: string }>;
   parts: Array<{ id: string; qty: number; part: { id: string; name: string; sku: string; unit: string } }>;
@@ -247,4 +248,31 @@ export interface SiteCustomer {
     dispatchedAt: string | null;
     device: { id: string; kind: DeviceKind; model: string; serialNo: string; qrCode: string | null };
   }>;
+}
+
+/** Repair invoice from the company to its customer (GET /job-invoices/:id). */
+export interface RepairInvoice {
+  id: string;
+  number: string;
+  currency: string;
+  taxRateBps: number;
+  subtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+  paidCents: number;
+  status: "unpaid" | "partial" | "paid" | "void";
+  issuedAt: string;
+  dueAt: string | null;
+  note: string | null;
+  lines: Array<{ id: string; kind: "labor" | "part" | "other"; description: string; qty: number; unitPriceCents: number; amountCents: number; jobPartId: string | null }>;
+  payments: Array<{ id: string; method: "bank_transfer" | "cash" | "other"; amountCents: number; paidAt: string; reference: string | null; status: string }>;
+  job: {
+    id: string;
+    number: string;
+    status: JobStatus;
+    site: { name: string; address: string | null };
+    device: { model: string; serialNo: string };
+    customer: { name: string; contactName: string | null; email: string | null; phone: string | null };
+  };
+  company: { name: string; legalName: string | null; taxId: string | null; billingAddress: string | null };
 }

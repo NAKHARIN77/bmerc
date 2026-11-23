@@ -10,6 +10,7 @@ import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
+import { PlatformDashboard } from "./platform-dashboard";
 import { ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
@@ -28,14 +29,7 @@ export function Dashboard() {
   }, [bench, router]);
   if (bench) return null;
 
-  if (me.isPlatformAdmin) {
-    return (
-      <>
-        <PageHeader title="Platform overview" subtitle="Companies, plans and payments" />
-        <Card>The platform owner console (companies, quotas, revenue) comes with the billing work in plan step 7.</Card>
-      </>
-    );
-  }
+  if (me.isPlatformAdmin) return <PlatformDashboard />;
 
   return (
     <>
@@ -56,6 +50,7 @@ export function Dashboard() {
           ) : undefined
         }
       />
+      {can("company_admin") && <SetupReminder />}
       <Counts />
       <div className={`mb-5 grid gap-4 ${can("company_admin") ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
         <NeedsAttention />
@@ -153,7 +148,7 @@ function PlanCard() {
           {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
           {row("Users", fmtLimit(data.users.used, data.users.limit))}
-          <Link href="/settings/company" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">
+          <Link href="/subscription" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">
             Open ›
           </Link>
         </>
@@ -195,5 +190,20 @@ function JobCards() {
         </div>
       )}
     </>
+  );
+}
+
+/** New companies: a nudge to the setup wizard until the first site exists. */
+function SetupReminder() {
+  const sites = useApi<Array<{ id: string }>>("/sites");
+  if (!sites.data || sites.data.length > 0) return null;
+  return (
+    <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 !bg-[#e7eefe]">
+      <div>
+        <b className="text-base text-navy">Finish setting up your company</b>
+        <p className="mt-1 text-sm text-muted">Add your sites, teams and staff so you can start receiving devices.</p>
+      </div>
+      <ButtonLink href="/setup">Open setup</ButtonLink>
+    </Card>
   );
 }

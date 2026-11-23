@@ -84,6 +84,7 @@ model Plan {
   isActive        Boolean @default(true) @map("is_active")
 
   subscriptions Subscription[]
+  invoices      Invoice[]
 
   @@map("plans")
 }
@@ -116,6 +117,8 @@ model Invoice {
   status         InvoiceStatus @default(open) // never delete; void instead
   dueAt          DateTime      @map("due_at")
   paidAt         DateTime?     @map("paid_at")
+  // Plan this invoice pays for. Paying an invoice for another plan moves the company to it (plan change).
+  planId         String?       @map("plan_id") @db.Uuid
   paymentRef     String?       @map("payment_ref") // PayPal / card / BTC reference
   // Phase 1: company uploads a transfer slip, platform owner confirms (mark-paid).
   slipUrl        String?       @map("slip_url")
@@ -124,6 +127,7 @@ model Invoice {
   createdAt      DateTime      @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id])
+  plan    Plan?   @relation(fields: [planId], references: [id])
 
   @@index([companyId])
   @@map("invoices")
@@ -279,6 +283,8 @@ model Site {
   jobs           Job[]
   stock          SiteStock[]
   stockMovements StockMovement[]
+  transfersOut   StockTransfer[] @relation("TransferFrom")
+  transfersIn    StockTransfer[] @relation("TransferTo")
   userLinks      UserSite[]
 
   @@index([companyId])
@@ -530,6 +536,7 @@ model Part {
   company   Company         @relation(fields: [companyId], references: [id])
   stock     SiteStock[]
   movements StockMovement[]
+  transfers StockTransfer[]
   jobParts  JobPart[]
 
   @@unique([companyId, sku])
@@ -630,4 +637,34 @@ model Counter {
 
   @@id([companyId, key])
   @@map("counters")
+}
+
+enum StockTransferStatus {
+  in_transit
+  received
+  cancelled
+}
+
+// Parts sent from one site to another: the sender books them out, the receiving site confirms arrival
+// (decided 2026-11-22). Cancelling while in transit books them back in at the sending site.
+model StockTransfer {
+  id          String              @id @default(uuid()) @db.Uuid
+  companyId   String              @map("company_id") @db.Uuid
+  fromSiteId  String              @map("from_site_id") @db.Uuid
+  toSiteId    String              @map("to_site_id") @db.Uuid
+  partId      String              @map("part_id") @db.Uuid
+  qty         Int
+  status      StockTransferStatus @default(in_transit)
+  note        String?
+  sentById    String              @map("sent_by_id") @db.Uuid
+  sentAt      DateTime            @default(now()) @map("sent_at")
+  closedById  String?             @map("closed_by_id") @db.Uuid
+  closedAt    DateTime?           @map("closed_at")
+
+  fromSite Site @relation("TransferFrom", fields: [fromSiteId], references: [id])
+  toSite   Site @relation("TransferTo", fields: [toSiteId], references: [id])
+  part     Part @relation(fields: [partId], references: [id])
+
+  @@index([companyId, status])
+  @@map("stock_transfers")
 }

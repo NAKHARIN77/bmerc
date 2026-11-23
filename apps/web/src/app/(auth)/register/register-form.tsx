@@ -21,7 +21,7 @@ export function RegisterForm() {
     setFields({});
     try {
       await api("/auth/register", { method: "POST", body: f });
-      router.replace("/settings/company");
+      router.replace("/setup");
     } catch (err) {
       const byField = err instanceof ApiError ? err.fieldErrors() : {};
       setFields(byField);

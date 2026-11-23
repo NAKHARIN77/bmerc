@@ -160,6 +160,30 @@ export function JobPage() {
           />
         </div>
       </Card>
+      {j.can.bill && <InvoiceCard job={j} />}
     </>
+  );
+}
+
+const MONEY = (cents: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+const INVOICE_STATUS = { unpaid: "Unpaid", partial: "Part paid", paid: "Paid", void: "Void" } as const;
+
+/** The job's repair invoice to the customer (admins and site managers). */
+function InvoiceCard({ job: j }: { job: JobDetail }) {
+  const inv = j.invoice;
+  return (
+    <Card className="mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <b className="text-base">Repair invoice</b>
+          <p className="mt-1 text-sm text-muted">
+            {inv
+              ? `${inv.number} · ${MONEY(inv.totalCents, inv.currency)} · paid ${MONEY(inv.paidCents, inv.currency)} · ${INVOICE_STATUS[inv.status]}`
+              : "No invoice yet. Bill the customer for labor and the parts used."}
+          </p>
+        </div>
+        {inv ? <ButtonLink href={`/repair-invoices/${inv.id}`}>Open invoice</ButtonLink> : <ButtonLink href={`/jobs/${j.id}/invoice`}>Create invoice</ButtonLink>}
+      </div>
+    </Card>
   );
 }

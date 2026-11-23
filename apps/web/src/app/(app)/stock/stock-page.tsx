@@ -44,6 +44,9 @@ export function StockPage() {
             </ButtonLink>
             {manage && (
               <>
+                <ButtonLink href="/stock/transfers" variant="secondary">
+                  Transfers
+                </ButtonLink>
                 <ButtonLink href="/stock/move?type=out" variant="secondary">
                   Stock out
                 </ButtonLink>
