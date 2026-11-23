@@ -339,13 +339,14 @@ export class PlatformController {
         select: {
           id: true, number: true, periodStart: true, periodEnd: true, amountCents: true, taxCents: true, taxRateBps: true, currency: true,
           status: true, dueAt: true, paidAt: true, paymentRef: true, slipUploadedAt: true, createdAt: true,
+          plan: { select: { name: true } },
           company: { select: { id: true, name: true, subscription: { select: { plan: { select: { name: true } } } } } },
         },
       }),
       this.db.raw.invoice.count({ where }),
     ]);
     const now = new Date();
-    return paged(rows.map(({ company, ...i }) => ({ ...i, totalCents: total(i), overdue: i.status === 'open' && i.dueAt < now, company: { id: company.id, name: company.name }, plan: company.subscription?.plan.name ?? null })), count, q);
+    return paged(rows.map(({ company, plan, ...i }) => ({ ...i, totalCents: total(i), overdue: i.status === 'open' && i.dueAt < now, company: { id: company.id, name: company.name }, plan: plan?.name ?? company.subscription?.plan.name ?? null })), count, q);
   }
 
   /** Confirm a payment by hand (bank transfer, or until the payment provider is connected). */

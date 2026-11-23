@@ -75,8 +75,11 @@ export interface PlatformInvoice {
   dueAt: string;
   paidAt: string | null;
   paymentRef: string | null;
+  /** When the company reported paying (bank transfer); null until then. */
+  slipUploadedAt: string | null;
   createdAt: string;
   company: { id: string; name: string };
+  /** The plan the invoice is for. */
   plan: string | null;
 }
 
