@@ -28,15 +28,15 @@ export function LoginForm() {
 
   return (
     <form onSubmit={submit} noValidate>
-      <AuthHeading title="Log in" subtitle="Use your work email and password" />
+      <AuthHeading title="Log in" subtitle="Use your company email and password" />
       {error && <Alert>{error}</Alert>}
-      <Field label="Email">{(id) => <Input id={id} name="email" type="email" autoComplete="email" required autoFocus />}</Field>
+      <Field label="Company email">{(id) => <Input id={id} name="email" type="email" autoComplete="email" placeholder="name@company.com" required autoFocus />}</Field>
       <Field label="Password">{(id) => <Input id={id} name="password" type="password" autoComplete="current-password" required />}</Field>
       <Button type="submit" busy={busy} className="mt-2 w-full">
         Log in
       </Button>
-      <AuthLink href="/forgot-password">Forgot your password?</AuthLink>
       <AuthLink href="/register">Register your company</AuthLink>
+      <AuthLink href="/forgot-password">Forgot your password?</AuthLink>
     </form>
   );
 }

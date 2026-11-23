@@ -21,6 +21,14 @@ describe('Auth (e2e)', () => {
   });
   afterAll(() => app.close());
 
+  it('anyone can read the plans on sale, without the trial plan', async () => {
+    const r = await http().get('/api/v1/plans').expect(200);
+    const codes = (r.body as Array<{ code: string; currency: string }>).map((p) => p.code);
+    expect(codes).toEqual(expect.arrayContaining(['basic', 'pro']));
+    expect(codes).not.toContain('trial');
+    expect(r.body[0]).toMatchObject({ currency: 'USD', features: expect.any(Array) });
+  });
+
   it('a new company starts on the Basic plan, in the currency of its country', async () => {
     const email = `signup-${Date.now()}@new.demo`;
     const body = { companyName: 'Signup Test Co', fullName: 'New Admin', email, password: 'Signup-1234' };

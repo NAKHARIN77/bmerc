@@ -51,11 +51,11 @@ export function RegisterForm() {
           </Select>
         )}
       </Field>
-      <Field label="Your full name" error={fields.fullName}>
-        {(id) => <Input id={id} name="fullName" autoComplete="name" required />}
+      <Field label="Full name" error={fields.fullName}>
+        {(id) => <Input id={id} name="fullName" autoComplete="name" placeholder="e.g. Wilai Rattanakul" required />}
       </Field>
-      <Field label="Work email" error={fields.email}>
-        {(id) => <Input id={id} name="email" type="email" autoComplete="email" required />}
+      <Field label="Company email" error={fields.email}>
+        {(id) => <Input id={id} name="email" type="email" autoComplete="email" placeholder="admin@company.com" required />}
       </Field>
       <Field label="Password" error={fields.password} hint={`At least ${MIN_PASSWORD} characters`}>
         {(id) => <Input id={id} name="password" type="password" autoComplete="new-password" minLength={MIN_PASSWORD} required />}

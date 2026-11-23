@@ -8,14 +8,14 @@ const SESSION_HINT = "bmerc_session";
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const hasSession = req.cookies.has(SESSION_HINT);
-  const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isPublic = pathname === "/" || PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (!isPublic && !hasSession) {
     const url = new URL("/login", req.url);
-    if (pathname !== "/") url.searchParams.set("next", pathname + search);
+    url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
-  if (hasSession && (pathname === "/login" || pathname === "/register")) {
+  if (hasSession && (pathname === "/" || pathname === "/login" || pathname === "/register")) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
   return NextResponse.next();
