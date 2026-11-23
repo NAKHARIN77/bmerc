@@ -13,8 +13,9 @@ import type { JobStatus } from '../generated/prisma/enums.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { monthStartUtc, periods } from '../common/periods.js';
 
-// Platform owner console (prototype owner screens). The owner reads companies, plans, billing, sites and stock,
-// but never repair work row by row: job numbers come from platform_job_counts(), which returns counts only.
+// Platform owner console (prototype owner screens). The owner runs the service: companies, plans, billing and sites.
+// No access to a company's parts, stock, customers or repair work (decided 2026-11-24); job numbers come from
+// platform_job_counts(), which returns counts only.
 
 type Counts = { company_id: string; site_id: string; status: JobStatus; jobs: bigint; received_this_month: bigint };
 const OPEN: JobStatus[] = ['todo', 'in_repair', 'waiting_parts'];
@@ -44,7 +45,6 @@ const MarkPaidBody = z.object({ paymentRef: z.string().trim().min(2).max(200) })
 const AuditQuery = PageQuery.extend({ action: z.string().max(100).optional(), companyId: z.uuid().optional(), q: z.string().trim().max(100).optional() });
 
 const PeriodQuery = z.object({ period: z.enum(['day', 'week', 'month']).default('month') });
-const StockQuery = PageQuery.extend({ level: z.enum(['all', 'low', 'out']).default('all'), q: z.string().trim().max(100).optional(), companyId: z.uuid().optional() });
 const startedAt = new Date();
 
 const total = (i: { amountCents: number; taxCents: number }) => i.amountCents + i.taxCents;
@@ -62,14 +62,6 @@ export class PlatformController {
     return this.db.raw.$queryRaw<Counts[]>`SELECT * FROM platform_job_counts()`;
   }
 
-  /** Low-stock rows (site stock below the part's minimum) per company. */
-  private async lowStock() {
-    const rows = await this.db.platform().siteStock.findMany({ select: { companyId: true, qty: true, part: { select: { minQty: true, isActive: true } } } });
-    const out = new Map<string, number>();
-    for (const r of rows) if (r.part.isActive && r.qty < r.part.minQty) out.set(r.companyId, (out.get(r.companyId) ?? 0) + 1);
-    return out;
-  }
-
   /** Payment state for the Quotas / Companies tables: overdue beats open beats paid. */
   private paymentOf(invoices: Array<{ status: string; dueAt: Date }>, plan: string | null) {
     const now = Date.now();
@@ -82,7 +74,7 @@ export class PlatformController {
   /** Every company with plan, limits, usage, payment and job numbers (Platform dashboard, Companies, Quotas). */
   @Get('companies')
   async companies() {
-    const [companies, counts, low] = await Promise.all([
+    const [companies, counts] = await Promise.all([
       this.db.raw.company.findMany({
         orderBy: { name: 'asc' },
         select: {
@@ -93,7 +85,6 @@ export class PlatformController {
         },
       }),
       this.jobCounts(),
-      this.lowStock(),
     ]);
     const sites = await this.db.platform().site.groupBy({ by: ['companyId', 'status'], _count: { _all: true } });
     return Promise.all(
@@ -116,7 +107,6 @@ export class PlatformController {
           },
           sites: siteRows.reduce((a, s) => a + s._count._all, 0),
           jobs: { open: n((r) => OPEN.includes(r.status)), waitingParts: n((r) => r.status === 'waiting_parts'), cannotRepair: n((r) => r.status === 'unrepairable'), atQc: n((r) => r.status === 'qc_passed') },
-          lowStock: low.get(c.id) ?? 0,
         };
       }),
     );
@@ -127,11 +117,10 @@ export class PlatformController {
   async overview() {
     const now = new Date();
     const since = monthStartUtc(now, 5);
-    const [paid, open, counts, low] = await Promise.all([
+    const [paid, open, counts] = await Promise.all([
       this.db.raw.invoice.findMany({ where: { status: 'paid', paidAt: { gte: since } }, select: { paidAt: true, amountCents: true, taxCents: true, currency: true } }),
       this.db.raw.invoice.findMany({ where: { status: 'open' }, select: { amountCents: true, taxCents: true, dueAt: true, slipUploadedAt: true } }),
       this.jobCounts(),
-      this.lowStock(),
     ]);
     const months = Array.from({ length: 6 }, (_, i) => monthStartUtc(now, 5 - i));
     const revenue = months.map((m, i) => {
@@ -148,7 +137,6 @@ export class PlatformController {
       pendingPayments: open.length,
       companies: Object.fromEntries(companies.map((c) => [c.status, c._count._all])),
       jobs: { byStatus, open: OPEN.reduce((a, s) => a + (byStatus[s] ?? 0), 0) },
-      lowStock: [...low.values()].reduce((a, n) => a + n, 0),
       revenue,
     };
   }
@@ -231,49 +219,23 @@ export class PlatformController {
     return { status };
   }
 
-  /** Every site of every company, with teams, technicians, open jobs and parts held (owner "Sites"). */
+  /** Every site of every company, with teams, technicians and open jobs (owner "Sites"). */
   @Get('sites')
   async sites() {
-    const [sites, techs, counts, stock] = await Promise.all([
+    const [sites, techs, counts] = await Promise.all([
       this.db.platform().site.findMany({
         orderBy: [{ company: { name: 'asc' } }, { name: 'asc' }],
         select: { id: true, name: true, country: true, province: true, status: true, company: { select: { id: true, name: true } }, teams: { select: { id: true } } },
       }),
       this.db.raw.user.findMany({ where: { isActive: true, role: { in: ['technician', 'head_technician'] }, teamId: { not: null } }, select: { team: { select: { siteId: true } } } }),
       this.jobCounts(),
-      this.db.platform().siteStock.groupBy({ by: ['siteId'], where: { qty: { gt: 0 } }, _count: { _all: true } }),
     ]);
-    const held = new Map(stock.map((s) => [s.siteId, s._count._all]));
     return sites.map(({ teams, ...s }) => ({
       ...s,
       teams: teams.length,
       technicians: techs.filter((t) => t.team?.siteId === s.id).length,
       openJobs: counts.filter((c) => c.site_id === s.id && OPEN.includes(c.status)).reduce((a, c) => a + Number(c.jobs), 0),
-      partsInStock: held.get(s.id) ?? 0,
     }));
-  }
-
-  /** Spare parts by site across companies (owner "Stock"). */
-  @Get('stock')
-  async stock(@Query() query: unknown) {
-    const q = parse(StockQuery, query);
-    const like = q.q ? { contains: q.q, mode: 'insensitive' as const } : undefined;
-    const rows = await this.db.platform().siteStock.findMany({
-      where: { ...(q.companyId ? { companyId: q.companyId } : {}), part: { isActive: true, ...(like ? { OR: [{ name: like }, { sku: like }] } : {}) } },
-      select: {
-        qty: true,
-        site: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
-        part: { select: { id: true, name: true, sku: true, unit: true, minQty: true } },
-      },
-      orderBy: [{ part: { name: 'asc' } }],
-    });
-    const all = rows.map((r) => ({ ...r, level: r.qty <= 0 ? 'out' : r.qty < r.part.minQty ? 'low' : 'ok' }));
-    const shown = q.level === 'all' ? all : all.filter((r) => r.level === q.level);
-    const start = (q.page - 1) * q.limit;
-    return {
-      ...paged(shown.slice(start, start + q.limit), shown.length, q),
-      counts: { skus: new Set(all.map((r) => r.part.id)).size, low: all.filter((r) => r.level === 'low').length, out: all.filter((r) => r.level === 'out').length },
-    };
   }
 
   /** Billed, collected and outstanding per day, week or month (owner "Monthly revenue"). */

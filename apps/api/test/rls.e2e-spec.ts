@@ -57,10 +57,10 @@ describe('Row-Level Security between companies', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('platform admin can read across companies but not write', async () => {
+  it("platform admin cannot read or write a company's customers", async () => {
     const admin = forPlatformAdmin(app);
     const rows = await admin.customer.findMany({ where: { companyId: { in: [a, b] } } });
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(0);
     await expect(admin.customer.create({ data: { companyId: a, name: 'Admin write' } })).rejects.toThrow();
   });
 

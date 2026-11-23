@@ -41,7 +41,7 @@ export function PlatformDashboard() {
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Companies" value={list.length} caption={`${active} active, ${suspended} suspended`} icon="building" />
         <Kpi label="Open jobs" value={o.jobs.open} caption="Across all companies" tone="info" icon="wrench" />
-        <Kpi label="Low stock" value={o.lowStock} caption="Site stock below minimum" tone="danger" icon="box" />
+        <Kpi label="Collected" value={usd(o.collectedThisMonthCents)} caption="Paid this month" tone="success" />
         <Kpi label="Pending payments" value={o.pendingPayments} caption="Waiting to confirm" tone="warn" />
       </div>
 
@@ -130,7 +130,6 @@ export function PlatformDashboard() {
                 { header: "Sites", cell: (c) => c.sites },
                 { header: "Users", cell: (c) => c.usage.users },
                 { header: "Open jobs", cell: (c) => c.jobs.open },
-                { header: "Low stock", cell: (c) => c.lowStock },
                 { header: "Status", cell: (c) => accessChip(c.status) },
               ]}
             />
