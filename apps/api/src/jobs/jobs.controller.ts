@@ -107,7 +107,52 @@ export class JobsController {
       orderBy: { fullName: 'asc' },
     });
     const teamName = new Map(teams.map((t) => [t.id, t.name]));
-    return users.map((u) => ({ id: u.id, fullName: u.fullName, role: u.role, teamId: u.teamId, team: teamName.get(u.teamId!) ?? null }));
+    const load = await this.workload(me, users.map((u) => u.id));
+    return users.map((u) => ({
+      id: u.id, fullName: u.fullName, role: u.role, teamId: u.teamId, team: teamName.get(u.teamId!) ?? null,
+      openJobs: load.get(u.id)?.open ?? 0,
+    }));
+  }
+
+  /**
+   * Technicians this user oversees with how many jobs each holds (prototype "Technician job cards").
+   * Admin: every team; site manager: teams at their sites; head technician: their own team.
+   */
+  @Roles('company_admin', 'site_manager', 'head_technician')
+  @Get('technicians')
+  async technicians(@CurrentUser() me: AuthUser) {
+    const teams = await this.db.tenant(me).team.findMany({
+      where: me.role === 'head_technician' ? { id: me.teamId ?? '' } : me.siteIds === null ? {} : { siteId: { in: me.siteIds } },
+      select: { id: true, name: true, site: { select: { id: true, name: true } } },
+    });
+    const users = await this.db.raw.user.findMany({
+      where: { companyId: me.companyId!, isActive: true, role: { in: TEAM_ROLES }, teamId: { in: teams.map((t) => t.id) } },
+      select: { id: true, fullName: true, role: true, teamId: true },
+      orderBy: { fullName: 'asc' },
+    });
+    const team = new Map(teams.map((t) => [t.id, t]));
+    const load = await this.workload(me, users.map((u) => u.id));
+    return users.map((u) => {
+      const t = team.get(u.teamId!)!;
+      return { id: u.id, fullName: u.fullName, role: u.role, team: { id: t.id, name: t.name }, site: t.site, openJobs: load.get(u.id)?.open ?? 0, atQc: load.get(u.id)?.qc ?? 0 };
+    });
+  }
+
+  /** Jobs held per technician: open (not yet at QC) and waiting at QC to be returned. */
+  private async workload(me: AuthUser, userIds: string[]) {
+    const rows = await this.db.tenant(me).job.groupBy({
+      by: ['assigneeId', 'status'],
+      where: { assigneeId: { in: userIds }, status: { not: 'dispatched' } },
+      _count: { _all: true },
+    });
+    const out = new Map<string, { open: number; qc: number }>();
+    for (const r of rows) {
+      const m = out.get(r.assigneeId!) ?? { open: 0, qc: 0 };
+      if (r.status === 'qc_passed') m.qc += r._count._all;
+      else if (r.status !== 'unrepairable') m.open += r._count._all;
+      out.set(r.assigneeId!, m);
+    }
+    return out;
   }
 
   /** Includes customer contact details, so every view is logged. Out-of-scope jobs return 404. */

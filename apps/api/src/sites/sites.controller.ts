@@ -9,7 +9,8 @@ import { changed } from '../common/diff.js';
 import { assertSiteSlot } from '../common/limits.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
 import { COMPANY_ROLES, type AuthUser } from '../auth/auth-user.js';
-import { siteScope } from '../auth/scope.js';
+import { jobScope, siteScope } from '../auth/scope.js';
+import { LogView } from '../audit/log-view.js';
 import { SiteStatus } from '../generated/prisma/enums.js';
 
 const text = (max: number) => z.string().trim().max(max).nullable().optional();
@@ -53,6 +54,46 @@ export class SitesController {
     const site = await this.db.tenant(me).site.findFirst({ where: { AND: [{ id: parse(uuid, id) }, siteScope(me)] }, select });
     if (!site) throw notFound('Site');
     return site;
+  }
+
+  /**
+   * Customers who sent devices to this site, who they are, and every device and job they sent here.
+   * Customers belong to the whole company (design doc Q1); this view is derived from the site's jobs.
+   * Includes contact details, so each read is logged.
+   */
+  @Roles('company_admin', 'site_manager', 'head_technician')
+  @LogView('site_customers')
+  @Get(':id/customers')
+  async customers(@CurrentUser() me: AuthUser, @Param('id') id: string) {
+    const siteId = parse(uuid, id);
+    const db = this.db.tenant(me);
+    const site = await db.site.findFirst({ where: { AND: [{ id: siteId }, siteScope(me)] }, select: { id: true } });
+    if (!site) throw notFound('Site');
+    const jobs = await db.job.findMany({
+      where: { AND: [{ siteId }, jobScope(me)] },
+      orderBy: { receivedAt: 'desc' },
+      take: 1000,
+      select: {
+        id: true, number: true, status: true, reportedFault: true, receivedAt: true, dispatchedAt: true,
+        device: { select: { id: true, kind: true, model: true, serialNo: true, qrCode: true } },
+        customer: { select: { id: true, name: true, contactName: true, email: true, phone: true, country: true } },
+      },
+    });
+    const byCustomer = new Map<string, { customer: (typeof jobs)[number]['customer']; jobs: Array<Omit<(typeof jobs)[number], 'customer'>> }>();
+    for (const { customer, ...job } of jobs) {
+      const row = byCustomer.get(customer.id) ?? { customer, jobs: [] };
+      row.jobs.push(job);
+      byCustomer.set(customer.id, row);
+    }
+    return [...byCustomer.values()]
+      .map(({ customer, jobs: list }) => ({
+        ...customer,
+        devices: new Set(list.map((j) => j.device.id)).size,
+        openJobs: list.filter((j) => j.status !== 'qc_passed' && j.status !== 'dispatched').length,
+        lastReceivedAt: list[0].receivedAt,
+        jobs: list,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /** Counts toward the plan's site limit unless created as inactive. */

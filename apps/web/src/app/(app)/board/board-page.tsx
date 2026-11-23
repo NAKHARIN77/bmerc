@@ -140,6 +140,11 @@ export function BoardPage() {
         subtitle={`${place} · Drag a job card to move it to another stage`}
         actions={
           <>
+            {canAssign && (
+              <ButtonLink href="/job-cards" variant="secondary">
+                Technician job cards
+              </ButtonLink>
+            )}
             <ButtonLink href={canAssign ? "/jobs/new" : "/scan"} variant="secondary">
               + New Diagnosis / Scan Ticket
             </ButtonLink>
@@ -379,7 +384,7 @@ function JobCard(props: {
               <option value="">Assign to technician...</option>
               {props.assignees.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.fullName}
+                  {a.fullName} · {a.openJobs} open
                 </option>
               ))}
             </Select>

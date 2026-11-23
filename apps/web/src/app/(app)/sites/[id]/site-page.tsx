@@ -6,14 +6,16 @@ import { useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { JobRow, Page, PartRow, Site, Team } from "@/lib/types";
+import { SiteCustomers } from "./site-customers";
 import { NoAccess } from "@/components/app-shell";
 import { StatusChip } from "@/components/chips";
 import { ButtonLink, CellLink, Chip, ErrorState, Loading, PageHeader, Pills, Table } from "@/components/ui";
 
-type Tab = "teams" | "technicians" | "jobs" | "stock";
+type Tab = "teams" | "technicians" | "customers" | "jobs" | "stock";
 const TABS: Array<{ value: Tab; label: string }> = [
   { value: "teams", label: "Teams" },
   { value: "technicians", label: "Technicians" },
+  { value: "customers", label: "Customers" },
   { value: "jobs", label: "Jobs" },
   { value: "stock", label: "Stock" },
 ];
@@ -119,6 +121,8 @@ export function SitePage() {
             ]}
           />
         ))}
+
+      {tab === "customers" && <SiteCustomers siteId={s.id} />}
 
       {tab === "stock" && (
         <div className="mb-3 flex flex-wrap gap-2">

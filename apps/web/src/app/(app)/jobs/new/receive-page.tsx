@@ -29,7 +29,7 @@ export function ReceivePage() {
 function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Site[] }) {
   const router = useRouter();
   const params = useSearchParams();
-  const [siteId, setSiteId] = useState(sites[0]?.id ?? "");
+  const [siteId, setSiteId] = useState(sites.find((x) => x.id === params.get("site"))?.id ?? sites[0]?.id ?? "");
   const [teamId, setTeamId] = useState("");
   const assignees = useApi<Assignee[]>(siteId ? `/jobs/assignees?siteId=${siteId}` : null);
   const teams = useApi<Team[]>("/teams");
@@ -141,7 +141,7 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
               {pickable.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.fullName}
-                  {a.team ? ` · ${a.team}` : ""}
+                  {a.team ? ` · ${a.team}` : ""} · {a.openJobs} open {a.openJobs === 1 ? "job" : "jobs"}
                 </option>
               ))}
             </Select>

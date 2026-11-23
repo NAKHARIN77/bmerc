@@ -26,8 +26,8 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
   {
     group: "Main menu",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices"] },
-      { label: "My jobs", href: "/board", icon: "wrench", roles: BENCH, also: ["/jobs", "/devices"] },
+      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices", "/job-cards"] },
+      { label: "My jobs", href: "/board", icon: "wrench", roles: BENCH, also: ["/jobs", "/devices", "/job-cards"] },
       { label: "Scan QR", href: "/scan", icon: "qr", roles: [...BENCH, "stock_keeper"] },
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },

@@ -172,6 +172,26 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     expect(head[0]).not.toHaveProperty('email');
   });
 
+  it('shows how many jobs each technician holds, only within what the viewer oversees', async () => {
+    const people = (await get(ADMIN, `/jobs/assignees?siteId=${bangkok}`).expect(200)).body;
+    expect(people[0]).toMatchObject({ openJobs: expect.any(Number) });
+    const all = (await get(ADMIN, '/jobs/technicians').expect(200)).body as Array<{ team: { id: string }; openJobs: number; atQc: number }>;
+    expect(all.length).toBeGreaterThan(0);
+    const head = (await get('head@siamhash.demo', '/jobs/technicians').expect(200)).body as Array<{ team: { id: string } }>;
+    expect(new Set(head.map((t) => t.team.id)).size).toBe(1);
+    await get(TECH, '/jobs/technicians').expect(403);
+    await get(STOCK, '/jobs/technicians').expect(403);
+  });
+
+  it('a site lists the customers who sent devices there, with what they sent', async () => {
+    const list = (await get(ADMIN, `/sites/${bangkok}/customers`).expect(200)).body as Array<{ id: string; email: unknown; jobs: Array<{ device: { serialNo: string } }> }>;
+    const mine = list.find((c) => c.id === customer)!;
+    expect(mine).toHaveProperty('email');
+    expect(mine.jobs.some((j) => j.device.serialNo === `T-${tag}-1`)).toBe(true);
+    await get(TECH, `/sites/${bangkok}/customers`).expect(403);
+    await get(MANAGER, `/sites/${bangkok}/customers`).expect(404); // not one of the manager's sites
+  });
+
   it('stock in and adjust need the right role; adjust needs a reason', async () => {
     await post(TECH, '/stock/in', { siteId: bangkok, partId: part, qty: 5 }).expect(403);
     await post(STOCK, '/stock/in', { siteId: bangkok, partId: part, qty: 5, reason: `test ${tag}` }).expect(201);

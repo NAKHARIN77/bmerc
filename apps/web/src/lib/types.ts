@@ -159,6 +159,18 @@ export interface Assignee {
   role: Role | null;
   teamId: string | null;
   team: string | null;
+  /** Jobs this technician holds that have not reached QC. */
+  openJobs: number;
+}
+
+export interface Technician {
+  id: string;
+  fullName: string;
+  role: Role | null;
+  team: { id: string; name: string };
+  site: { id: string; name: string };
+  openJobs: number;
+  atQc: number;
 }
 
 export type StockLevel = "ok" | "low" | "out";
@@ -212,5 +224,27 @@ export interface DeviceHistory extends Omit<DeviceMatch, "matchedBoard" | "jobs"
     assignee: { fullName: string } | null;
     components: Array<{ id: string; component: string; serialNo: string | null; replacementSerialNo: string | null; workDone: string | null; result: ComponentResult }>;
     parts: Array<{ id: string; qty: number; part: { name: string; sku: string } }>;
+  }>;
+}
+
+/** A customer who sent devices to one site, with what they sent there (GET /sites/:id/customers). */
+export interface SiteCustomer {
+  id: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  devices: number;
+  openJobs: number;
+  lastReceivedAt: string;
+  jobs: Array<{
+    id: string;
+    number: string;
+    status: JobStatus;
+    reportedFault: string | null;
+    receivedAt: string;
+    dispatchedAt: string | null;
+    device: { id: string; kind: DeviceKind; model: string; serialNo: string; qrCode: string | null };
   }>;
 }
