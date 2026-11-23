@@ -173,6 +173,7 @@ export class JobsController {
         components: { select: { id: true, component: true, serialNo: true, replacementSerialNo: true, workDone: true, result: true } },
         tests: { select: { id: true, testedOn: true, testedById: true, workDone: true, results: true, passed: true, createdAt: true }, orderBy: { createdAt: 'desc' } },
         qrPrintLogs: { select: { id: true, printedBy: true, copies: true, printedAt: true }, orderBy: { id: 'desc' } },
+        invoice: { select: { id: true, number: true, status: true, currency: true, totalCents: true, paidCents: true } },
       },
     });
     if (!job) throw notFound('Job');
@@ -186,7 +187,7 @@ export class JobsController {
       events: job.events.map((e) => ({ ...e, id: e.id.toString(), by: e.actorId ? (actors.get(e.actorId) ?? null) : null })),
       tests: job.tests.map(({ testedById, ...t }) => ({ ...t, testedBy: actors.get(testedById) ?? null })),
       qrPrintLogs: job.qrPrintLogs.map(({ printedBy, ...l }) => ({ ...l, id: l.id.toString(), by: actors.get(printedBy) ?? null })),
-      can: allowedActions(me, { status: job.status, assigneeId, siteId }),
+      can: { ...allowedActions(me, { status: job.status, assigneeId, siteId }), bill: me.role === 'company_admin' || me.role === 'site_manager' },
     };
   }
 }

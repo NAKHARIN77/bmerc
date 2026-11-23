@@ -57,6 +57,9 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     // The stock ledger is append-only (trigger). Lift it only to remove this test's own rows, in one transaction.
     await owner.$transaction(async (tx) => {
       await tx.$executeRaw`ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only`;
+      await tx.jobPayment.deleteMany({ where: { invoice: { jobId: { in: jobs } } } });
+      await tx.jobInvoiceLine.deleteMany({ where: { invoice: { jobId: { in: jobs } } } });
+      await tx.jobInvoice.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobPart.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobTest.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.qrPrintLog.deleteMany({ where: { jobId: { in: jobs } } });
@@ -129,7 +132,7 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     await post(ADMIN, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(403);
     const job = (await get(ADMIN, `/jobs/${id}`).expect(200)).body;
     expect(job.events.map((e: { toStatus: string }) => e.toStatus)).toEqual(['todo', 'in_repair', 'waiting_parts', 'in_repair', 'qc_passed', 'dispatched']);
-    expect(job.can).toEqual({ assign: false, work: false, dispatch: false, parts: false });
+    expect(job.can).toMatchObject({ assign: false, work: false, dispatch: false, parts: false });
 
     const dev = (await get(TECH, `/devices/by-qr/${qc.body.qrCode}`).expect(200)).body;
     await get(OTHER, `/devices/by-qr/${qc.body.qrCode}`).expect(404);
@@ -190,6 +193,23 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     expect(mine.jobs.some((j) => j.device.serialNo === `T-${tag}-1`)).toBe(true);
     await get(TECH, `/sites/${bangkok}/customers`).expect(403);
     await get(MANAGER, `/sites/${bangkok}/customers`).expect(404); // not one of the manager's sites
+  });
+
+  it('bills the customer with tax, records payments and refuses overpayment', async () => {
+    const id = jobs[0];
+    const body = { lines: [{ kind: 'labor', description: 'Repair labor', qty: 1, unitPriceCents: 150_000 }, { kind: 'other', description: 'Cleaning', qty: 2, unitPriceCents: 25_000 }] };
+    await post(TECH, `/jobs/${id}/invoice`, body).expect(403);
+    const inv = (await post(ADMIN, `/jobs/${id}/invoice`, body).expect(201)).body;
+    expect(inv.number).toMatch(/^RI-\d{4}-\d{4}$/);
+    expect((await post(ADMIN, `/jobs/${id}/invoice`, body).expect(409)).body.code).toBe('INVOICE_EXISTS');
+    const full = (await get(ADMIN, `/job-invoices/${inv.id}`).expect(200)).body;
+    expect(full).toMatchObject({ subtotalCents: 200_000, taxCents: 14_000, totalCents: 214_000, status: 'unpaid' }); // Siam Hash: 7%
+    await post(ADMIN, `/job-invoices/${inv.id}/payments`, { amountCents: 300_000, method: 'cash' }).expect(409);
+    expect((await post(ADMIN, `/job-invoices/${inv.id}/payments`, { amountCents: 100_000, method: 'cash' }).expect(201)).body.status).toBe('partial');
+    await post(ADMIN, `/job-invoices/${inv.id}/void`, { reason: 'test' }).expect(409); // has a payment
+    expect((await post(ADMIN, `/job-invoices/${inv.id}/payments`, { amountCents: 114_000, method: 'bank_transfer', reference: 'KB 1' }).expect(201)).body.status).toBe('paid');
+    expect((await get(ADMIN, `/jobs/${id}`).expect(200)).body.invoice).toMatchObject({ status: 'paid', paidCents: 214_000 });
+    await get(MANAGER, `/job-invoices/${inv.id}`).expect(404); // not the manager's site
   });
 
   it('stock in and adjust need the right role; adjust needs a reason', async () => {
