@@ -156,7 +156,7 @@ export function RepairInvoicePage() {
                 { header: "Date", cell: (p) => fmtDate(p.paidAt) },
                 { header: "Method", cell: (p) => METHOD[p.method] },
                 { header: "Reference", cell: (p) => p.reference ?? "—" },
-                { header: "Amount", cell: (p) => money(p.amountCents, i.currency) },
+                { header: "Amount", emphasis: true, cell: (p) => money(p.amountCents, i.currency) },
               ]}
             />
           </div>

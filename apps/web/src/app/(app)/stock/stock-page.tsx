@@ -119,7 +119,7 @@ export function StockPage() {
               { header: "Item", className: "min-w-[180px]", cell: (r) => <CellLink href={`/parts/${r.part.id}`}>{r.part.name}</CellLink> },
               { header: "SKU", cell: (r) => r.part.sku },
               { header: "Site", className: "min-w-[150px]", cell: (r) => r.site.name },
-              { header: "Qty", cell: (r) => `${r.qty} ${r.part.unit}` },
+              { header: "Qty", emphasis: true, cell: (r) => `${r.qty} ${r.part.unit}` },
               { header: "Minimum", cell: (r) => r.part.minQty },
               { header: "Status", cell: (r) => <LevelChip level={r.level} /> },
             ]}

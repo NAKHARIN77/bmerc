@@ -156,7 +156,7 @@ export function TransfersPage() {
           columns={[
             { header: "Sent", className: "whitespace-nowrap", cell: (t) => fmtDateTime(t.sentAt) },
             { header: "Part", cell: (t) => `${t.part.name} (${t.part.sku})` },
-            { header: "Qty", cell: (t) => `${t.qty} ${t.part.unit}` },
+            { header: "Qty", emphasis: true, cell: (t) => `${t.qty} ${t.part.unit}` },
             { header: "From", cell: (t) => t.fromSite.name },
             { header: "To", cell: (t) => t.toSite.name },
             { header: "By", cell: (t) => t.sentBy ?? "—" },

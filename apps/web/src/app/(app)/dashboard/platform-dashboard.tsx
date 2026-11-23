@@ -60,7 +60,7 @@ export function PlatformDashboard() {
           { header: "Plan", cell: (c) => c.plan?.name ?? "—" },
           { header: "Status", cell: (c) => accessChip(c.status) },
           { header: "Sites", cell: (c) => c.sites },
-          { header: "Open jobs", cell: (c) => c.jobs.open },
+          { header: "Open jobs", emphasis: true, cell: (c) => c.jobs.open },
           { header: "Waiting parts", cell: (c) => c.jobs.waitingParts },
           { header: "Cannot repair", cell: (c) => c.jobs.cannotRepair },
           {

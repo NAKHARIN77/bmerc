@@ -257,7 +257,7 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
           empty="No parts used yet"
           columns={[
             { header: "Part", cell: (p) => p.part.name },
-            { header: "Qty", cell: (p) => `${p.qty} ${p.part.unit}` },
+            { header: "Qty", emphasis: true, cell: (p) => `${p.qty} ${p.part.unit}` },
             ...(j.can.parts
               ? [
                   {

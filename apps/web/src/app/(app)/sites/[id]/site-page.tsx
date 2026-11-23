@@ -159,7 +159,7 @@ export function SitePage() {
             columns={[
               { header: "Part", cell: (p) => <CellLink href={`/parts/${p.id}`}>{p.name}</CellLink> },
               { header: "SKU", cell: (p) => p.sku },
-              { header: "Qty", cell: (p) => `${p.totalQty} ${p.unit}` },
+              { header: "Qty", emphasis: true, cell: (p) => `${p.totalQty} ${p.unit}` },
               { header: "Minimum", cell: (p) => p.minQty },
               { header: "Status", cell: (p) => (p.totalQty === 0 ? <Chip tone="danger">Out</Chip> : p.totalQty < p.minQty ? <Chip tone="danger">Low</Chip> : <Chip tone="success">OK</Chip>) },
             ]}

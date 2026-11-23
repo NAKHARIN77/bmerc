@@ -92,7 +92,7 @@ export function JobPage() {
             empty="No parts used yet"
             columns={[
               { header: "Part", cell: (p) => p.part.name },
-              { header: "Qty", cell: (p) => p.qty },
+              { header: "Qty", emphasis: true, cell: (p) => p.qty },
               { header: "SKU", cell: (p) => p.part.sku },
             ]}
           />

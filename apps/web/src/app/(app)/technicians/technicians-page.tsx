@@ -44,7 +44,7 @@ export function TechniciansPage() {
             { header: "Technician", cell: (t) => <CellLink href={`/technicians/${t.id}`}>{t.fullName}</CellLink> },
             { header: "Role", cell: (t) => (t.role ? ROLE_LABEL[t.role] : "—") },
             { header: "Team", cell: (t) => `${t.team.name} · ${t.site.name}` },
-            { header: "Open jobs", cell: (t) => t.openJobs },
+            { header: "Open jobs", emphasis: true, cell: (t) => t.openJobs },
             { header: "Completed (QC)", cell: (t) => t.atQc },
             {
               header: "",

@@ -56,7 +56,7 @@ function Company() {
           { header: "City / Province", cell: (s) => s.province ?? "—" },
           { header: "Teams", cell: (s) => s.teams },
           { header: "Technicians", cell: (s) => s.technicians },
-          { header: "Open jobs", cell: (s) => s.openJobs },
+          { header: "Open jobs", emphasis: true, cell: (s) => s.openJobs },
         ]}
       />
       <Card className="mt-4">

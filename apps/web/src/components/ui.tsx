@@ -144,65 +144,77 @@ export interface Column<T> {
   header: string;
   cell: (row: T) => ReactNode;
   className?: string;
+  /** In the list view, show this value large on the right (a quantity or amount). */
+  emphasis?: boolean;
 }
 
-// Table-only classes (alignment, nowrap, column widths) would squeeze or overflow a card's fields.
+// Table-only classes (alignment, nowrap, column widths) would squeeze or overflow a list row.
 const clean = (c?: string) => c?.replace(/(^|\s)(text-right|whitespace-nowrap|min-w-\S+|max-w-\S+|w-\S+)(?=\s|$)/g, " ");
 
 /**
- * A list of records. By default each row is a card in a grid: the first column is the title, "Status" sits beside it,
- * the other columns are small label/value pairs, and untitled columns (actions) go at the bottom right.
+ * A list of records. By default it is one white panel with a row per record, like a phone app list:
+ * the first column is the title, the other columns are a short "Label value" line under it, "Status" and
+ * any emphasis column sit on the right, untitled columns (actions) at the end, and a chevron when the row opens.
  * variant="table" keeps a classic table, for printed documents such as invoice lines.
  */
-export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick, variant = "cards" }: {
+export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick, variant = "list" }: {
   columns: Array<Column<T>>;
   rows: T[];
   rowKey: (row: T) => string;
   empty?: string;
   onRowClick?: (row: T) => void;
-  variant?: "cards" | "table";
+  variant?: "list" | "table";
 }) {
-  if (variant === "cards") {
+  if (variant === "list") {
     const [title, ...rest] = columns;
     const status = rest.find((c) => c.header === "Status");
+    const big = rest.filter((c) => c.emphasis);
     const actions = rest.filter((c) => !c.header);
-    const fields = rest.filter((c) => c !== status && c.header);
-    if (rows.length === 0) return <div className="rounded-xl border border-dashed border-line bg-white/60 px-4 py-8 text-center text-sm text-muted">{empty}</div>;
+    const fields = rest.filter((c) => c !== status && c.header && !c.emphasis);
     return (
-      <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))]">
-        {rows.map((r) => (
-          <li
-            key={rowKey(r)}
-            onClick={onRowClick ? () => onRowClick(r) : undefined}
-            className={cx(
-              "flex flex-col rounded-xl border border-soft bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.04)] transition-shadow",
-              onRowClick && "cursor-pointer hover:border-[#c9d6f2] hover:shadow-[0_4px_14px_rgba(0,99,152,.12)]",
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className={cx("min-w-0 break-words text-[15px] font-semibold text-ink", clean(title.className))}>{title.cell(r)}</div>
-              {status && <div className="shrink-0">{status.cell(r)}</div>}
-            </div>
-            {fields.length > 0 && (
-              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
-                {fields.map((c) => (
-                  <div key={c.header} className="min-w-0">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.header}</dt>
-                    <dd className={cx("mt-0.5 break-words text-sm text-ink", clean(c.className))}>{c.cell(r)}</dd>
+      <div className="overflow-hidden rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+        {rows.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted">{empty}</div>
+        ) : (
+          <ul className="divide-y divide-soft">
+            {rows.map((r) => (
+              <li
+                key={rowKey(r)}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                className={cx("flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 sm:flex-nowrap", onRowClick && "cursor-pointer transition-colors hover:bg-[#f5f8ff]")}
+              >
+                <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+                  <div className={cx("break-words text-[15px] font-semibold text-ink", clean(title.className))}>{title.cell(r)}</div>
+                  {fields.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[13px]">
+                      {fields.map((c) => (
+                        <span key={c.header} className="min-w-0">
+                          <span className="text-muted">{c.header}</span> <span className={cx("text-ink", clean(c.className))}>{c.cell(r)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {big.map((c) => (
+                  <div key={c.header} className="shrink-0 text-right">
+                    <div className="text-lg font-bold leading-tight text-navy">{c.cell(r)}</div>
+                    <div className="text-[11px] text-muted">{c.header}</div>
                   </div>
                 ))}
-              </dl>
-            )}
-            {actions.length > 0 && (
-              <div className="mt-auto flex flex-wrap justify-end gap-2 pt-3" onClick={(e) => e.stopPropagation()}>
-                {actions.map((c, i) => (
-                  <div key={i}>{c.cell(r)}</div>
-                ))}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+                {status && <div className="shrink-0">{status.cell(r)}</div>}
+                {actions.length > 0 && (
+                  <div className="flex shrink-0 flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                    {actions.map((c, i) => (
+                      <div key={i}>{c.cell(r)}</div>
+                    ))}
+                  </div>
+                )}
+                {onRowClick && <span aria-hidden className="shrink-0 text-xl leading-none text-[#9aa7c2]">›</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
   }
   return (

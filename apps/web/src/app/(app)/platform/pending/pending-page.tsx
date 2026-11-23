@@ -87,7 +87,7 @@ function Pending() {
           columns={[
             { header: "Date", className: "whitespace-nowrap", cell: (i) => fmtDate(i.createdAt) },
             { header: "Company", className: "min-w-[160px]", cell: (i) => i.company.name },
-            { header: "Amount", className: "whitespace-nowrap", cell: (i) => usd(i.totalCents, i.currency) },
+            { header: "Amount", emphasis: true, className: "whitespace-nowrap", cell: (i) => usd(i.totalCents, i.currency) },
             { header: "Due", className: "whitespace-nowrap", cell: (i) => fmtDate(i.dueAt) },
             { header: "Status", cell: (i) => <InvoiceChip invoice={i} /> },
             {
