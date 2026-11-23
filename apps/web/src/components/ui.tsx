@@ -17,13 +17,58 @@ const VARIANT: Record<Variant, string> = {
   ghost: "text-info hover:underline px-0",
 };
 
+// Every button carries an icon picked from its label, so the same action looks the same on every page.
+// First match wins; pass icon={false} to opt out, or icon="name" to choose.
+const ICON_RULES: Array<[RegExp, IconName]> = [
+  [/^\+/, "plus"],
+  [/^(back|previous)/i, "arrowLeft"],
+  [/print/i, "printer"],
+  [/export|download/i, "download"],
+  [/^(search|look up)/i, "search"],
+  [/^(delete|remove)/i, "trash"],
+  [/^(cancel|reject|not received|deactivate|void)/i, "close"],
+  [/^suspend/i, "pause"],
+  [/^activate/i, "play"],
+  [/^(edit|update status|limits|change)/i, "pencil"],
+  [/password|log in again/i, "lock"],
+  [/(pay|upgrade|choose|renew|checkout|available soon|payment details)/i, "dollar"],
+  [/^(save|confirm|paid|issue|mark as|i have sent|use part|parts arrived|close job|finish)/i, "check"],
+  [/^send/i, "send"],
+  [/^invite/i, "mail"],
+  [/(scan|qr)/i, "qr"],
+  [/^(receive|create|new)/i, "plus"],
+  [/(dispatch|return to customer)/i, "truck"],
+  [/(record test|test)/i, "clipboard"],
+  [/^(start repair|request parts)/i, "wrench"],
+  [/^parts catalog/i, "list"],
+  [/^transfers/i, "truck"],
+  [/^adjust/i, "pencil"],
+  [/stock/i, "box"],
+  [/^try again/i, "refresh"],
+  [/^(view|open|customer detail|technicians|bench board|technician job cards|all payments|pending payments)/i, "eye"],
+  [/^(next|continue|skip|log in|go)/i, "arrowRight"],
+];
+function withIcon(children: ReactNode, icon: IconName | false | undefined) {
+  if (icon === false || typeof children !== "string") return children;
+  const name = icon ?? ICON_RULES.find(([re]) => re.test(children.trim()))?.[1];
+  if (!name) return children;
+  const text = name === "plus" ? children.replace(/^\+\s*/, "") : children;
+  return (
+    <>
+      <Icon name={name} size={16} strokeWidth={2} className="shrink-0" />
+      {text}
+    </>
+  );
+}
+
 export function Button({
   variant = "primary",
   busy,
   className,
   children,
+  icon,
   ...rest
-}: { variant?: Variant; busy?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: { variant?: Variant; busy?: boolean; icon?: IconName | false } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cx(
@@ -34,7 +79,7 @@ export function Button({
       disabled={busy || rest.disabled}
       {...rest}
     >
-      {busy ? "Working…" : children}
+      {busy ? "Working…" : withIcon(children, icon)}
     </button>
   );
 }
@@ -301,13 +346,13 @@ export function Pager({ page, limit, total, onPage }: { page: number; limit: num
 // ───── Prototype page pieces ─────
 
 /** A link that looks like a button (Back to …, + Add …). */
-export function ButtonLink({ href, variant = "primary", className, children }: { href: string; variant?: Variant; className?: string; children: ReactNode }) {
+export function ButtonLink({ href, variant = "primary", className, children, icon }: { href: string; variant?: Variant; className?: string; children: ReactNode; icon?: IconName | false }) {
   return (
     <Link
       href={href}
       className={cx("inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-colors", VARIANT[variant], className)}
     >
-      {children}
+      {withIcon(children, icon)}
     </Link>
   );
 }
