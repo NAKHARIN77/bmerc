@@ -30,6 +30,8 @@ describe('Repair workflow, stock and device history (e2e)', () => {
   const jobs: string[] = [];
   let bangkok: string, customer: string, part: string, stockBefore: number;
   let counter: { companyId: string; key: string; value: number } | null = null;
+  let chonburi: string, chonburiBefore = 0;
+  const started = new Date();
   const qty = async () => (await owner.siteStock.findUnique({ where: { siteId_partId: { siteId: bangkok, partId: part } } }))?.qty ?? 0;
   const receive = (who: string, serialNo: string, extra: object = {}) =>
     post(who, '/jobs', { customerId: customer, siteId: bangkok, kind: 'miner', model: 'Antminer S19 Pro', serialNo, reportedFault: 'No hashrate', ...extra });
@@ -48,6 +50,8 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     const row = (await get(ADMIN, `/stock?siteId=${bangkok}&limit=100`).expect(200)).body.items.find((r: { qty: number }) => r.qty >= 3);
     part = row.part.id;
     stockBefore = row.qty;
+    chonburi = sites.find((s) => s.name === 'Chonburi Repair Hub')!.id;
+    chonburiBefore = (await owner.siteStock.findUnique({ where: { siteId_partId: { siteId: chonburi, partId: part } } }))?.qty ?? 0;
     const companyId = (await owner.site.findUniqueOrThrow({ where: { id: bangkok } })).companyId;
     counter = await owner.counter.findFirst({ where: { companyId, key: `job:${new Date().getFullYear()}` } });
   });
@@ -65,7 +69,9 @@ describe('Repair workflow, stock and device history (e2e)', () => {
       await tx.qrPrintLog.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobComponent.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobEvent.deleteMany({ where: { jobId: { in: jobs } } });
-      await tx.stockMovement.deleteMany({ where: { OR: [{ jobId: { in: jobs } }, { reason: { contains: String(tag) } }] } });
+      await tx.stockTransfer.deleteMany({ where: { sentAt: { gte: started }, partId: part } });
+      await tx.stockMovement.deleteMany({ where: { OR: [{ jobId: { in: jobs } }, { reason: { contains: String(tag) } }, { reason: { startsWith: 'Transfer' }, createdAt: { gte: started }, partId: part }] } });
+      await tx.siteStock.upsert({ where: { siteId_partId: { siteId: chonburi, partId: part } }, update: { qty: chonburiBefore }, create: { companyId: counter!.companyId, siteId: chonburi, partId: part, qty: chonburiBefore } });
       await tx.job.deleteMany({ where: { id: { in: jobs } } });
       await tx.device.deleteMany({ where: { id: { in: devices } } });
       await tx.siteStock.update({ where: { siteId_partId: { siteId: bangkok, partId: part } }, data: { qty: stockBefore } });
@@ -220,5 +226,22 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     const r = await post(STOCK, '/stock/adjust', { siteId: bangkok, partId: part, countedQty: 2, reason: `count ${tag}` }).expect(201);
     expect(r.body.qty).toBe(2);
     await post(MANAGER, '/stock/in', { siteId: bangkok, partId: part, qty: 1, reason: `test ${tag}` }).expect(403);
+  });
+
+  it('sends parts to another site; only the receiving site confirms; the sender can cancel', async () => {
+    const at = async (siteId: string) => (await owner.siteStock.findUnique({ where: { siteId_partId: { siteId, partId: part } } }))?.qty ?? 0;
+    const bkk = await at(bangkok);
+    const t1 = (await post(ADMIN, '/stock/transfers', { fromSiteId: bangkok, toSiteId: chonburi, partId: part, qty: 1 }).expect(201)).body;
+    expect(await at(bangkok)).toBe(bkk - 1);
+    await post(STOCK, `/stock/transfers/${t1.id}/receive`).expect(403); // Bangkok stock keeper is not at Chonburi
+    await post(MANAGER, `/stock/transfers/${t1.id}/receive`).expect(201); // Chonburi site manager
+    expect(await at(chonburi)).toBe(chonburiBefore + 1);
+    await post(MANAGER, `/stock/transfers/${t1.id}/receive`).expect(409);
+
+    const t2 = (await post(STOCK, '/stock/transfers', { fromSiteId: bangkok, toSiteId: chonburi, partId: part, qty: 1 }).expect(201)).body;
+    await post(STOCK, `/stock/transfers/${t2.id}/cancel`).expect(201);
+    expect(await at(bangkok)).toBe(bkk - 1);
+    await post(MANAGER, '/stock/transfers', { fromSiteId: bangkok, toSiteId: chonburi, partId: part, qty: 1 }).expect(403); // not the manager's site
+    expect((await post(ADMIN, '/stock/transfers', { fromSiteId: bangkok, toSiteId: chonburi, partId: part, qty: 10_000 }).expect(409)).body.code).toBe('STOCK_INSUFFICIENT');
   });
 });
