@@ -230,7 +230,7 @@ export function BoardPage() {
               }}
               onDragLeave={() => setOver((o) => (o === status ? null : o))}
               onDrop={(e) => drop(e, status)}
-              className={`min-w-[220px] flex-1 basis-0 rounded-xl p-3 transition-colors ${over === status ? "bg-[#dfe7f7]" : "bg-[#eef1f8]"}`}
+              className={`min-w-[200px] flex-1 basis-0 rounded-xl p-3 transition-colors ${over === status ? "bg-[#dfe7f7]" : "bg-[#eef1f8]"}`}
             >
               <div className="mb-3 flex items-center justify-between font-semibold text-navy">
                 <span>{label}</span>
@@ -362,7 +362,7 @@ function JobCard(props: {
         <>
           <div className="my-2.5">
             {printed ? (
-              <span className="rounded-full bg-[#d1fae5] px-2.5 py-1 text-xs font-semibold text-success">Label printed {fmtDate(printed.printedAt)}</span>
+              <span className="inline-block rounded-full bg-[#d1fae5] px-2.5 py-1 text-xs font-semibold text-success">Printed {fmtDate(printed.printedAt)}</span>
             ) : (
               <span className="rounded-full bg-[#fef3c7] px-2.5 py-1 text-xs font-semibold text-warn">Label not printed</span>
             )}

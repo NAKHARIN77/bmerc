@@ -52,8 +52,8 @@ export function ReportsPage() {
         {CARDS.map(([kind, t, d, p, i]) => (
           <Card key={kind}>
             <b className="text-base">{t}</b>
-            <p className="mt-1 text-muted">{d}</p>
-            <p className="mb-3 mt-1 text-xs text-muted">
+            <p className="mt-3 text-[15px] text-muted">{d}</p>
+            <p className="mb-4 mt-3 text-[13px] text-muted">
               {p}
               <br />
               {i}

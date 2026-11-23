@@ -4,6 +4,8 @@ import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { api, errorMessage } from "@/lib/api";
+import type { BillingInvoice } from "@/lib/billing";
 import { fmtLimit } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { qs, useDebounced } from "@/lib/use-debounced";
@@ -11,7 +13,7 @@ import { useSession } from "@/lib/session";
 import type { JobRow, JobSummary, Page, PartRow, Usage } from "@/lib/types";
 import { StatusChip } from "@/components/chips";
 import { PlatformDashboard } from "./platform-dashboard";
-import { ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
+import { Alert, Button, ButtonLink, Card, ErrorState, Kpi, KpiRow, Loading, PageHeader, Pills, SearchBar } from "@/components/ui";
 
 type Filter = "all" | JobStatus;
 const FILTERS: Array<{ value: Filter; label: string }> = [
@@ -37,17 +39,7 @@ export function Dashboard() {
         title="Overview"
         subtitle="Your repair center at a glance"
         actions={
-          can("company_admin", "site_manager") ? (
-            <>
-              <ButtonLink href="/job-cards" variant="secondary">
-                Technician job cards
-              </ButtonLink>
-              <ButtonLink href="/board" variant="secondary">
-                Bench board
-              </ButtonLink>
-              <ButtonLink href="/jobs/new">+ New ticket</ButtonLink>
-            </>
-          ) : undefined
+          can("company_admin", "site_manager") ? <ButtonLink href="/jobs/new">+ New ticket</ButtonLink> : undefined
         }
       />
       {can("company_admin") && <SetupReminder />}
@@ -80,6 +72,9 @@ function Counts() {
 /** Open jobs that need someone: urgent or high priority, waiting for parts, or cannot be repaired. */
 function NeedsAttention() {
   const jobs = useApi<Page<JobRow>>("/jobs?open=true&limit=100");
+  const canDispatch = useSession().can("company_admin", "site_manager");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [now] = useState(() => Date.now()); // when the page opened
   const waited = (j: JobRow) => Math.floor((now - Date.parse(j.receivedAt)) / 86_400_000);
   // A job nobody has taken for a day or more comes first, so it is not forgotten in the queue.
@@ -104,6 +99,7 @@ function NeedsAttention() {
     <div>
       <b className="text-base">Needs attention</b>
       <div className="mt-3">
+      {error && <Alert>{error}</Alert>}
       {jobs.error ? (
         <ErrorState error={jobs.error} onRetry={jobs.reload} />
       ) : !jobs.data ? (
@@ -112,15 +108,38 @@ function NeedsAttention() {
         <Card className="text-sm text-muted">Nothing needs attention right now.</Card>
       ) : (
         list.map((j) => (
-          <Link key={j.id} href={`/jobs/${j.id}`} className="mb-2.5 block rounded-xl bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,99,152,.2)]">
+          <div key={j.id} className="mb-2.5 rounded-xl bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,.05)]">
             <b>
               {j.number} · {j.device.model}
             </b>
             <div className="mt-1 text-[13px] text-muted">
               {reason(j)} · {j.customer.name}
             </div>
-            <div className="mt-3 text-[13px] font-semibold text-info">Open ›</div>
-          </Link>
+            {j.status === "unrepairable" && canDispatch && (
+              <Button
+                className="mt-3 h-[34px]"
+                busy={busy === j.id}
+                onClick={async () => {
+                  if (!window.confirm(`Return ${j.device.model} (${j.number}) to ${j.customer.name}?`)) return;
+                  setBusy(j.id);
+                  setError(null);
+                  try {
+                    await api(`/jobs/${j.id}/transition`, { method: "POST", body: { to: "dispatched" } });
+                    jobs.reload();
+                  } catch (e) {
+                    setError(errorMessage(e));
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                Confirm return to customer
+              </Button>
+            )}
+            <Link href={`/jobs/${j.id}`} className="mt-3 block text-[13px] font-semibold text-info hover:underline">
+              Open ›
+            </Link>
+          </div>
         ))
       )}
       </div>
@@ -130,6 +149,9 @@ function NeedsAttention() {
 
 function PlanCard() {
   const { data } = useApi<Usage>("/company/usage");
+  const invoices = useApi<BillingInvoice[]>("/billing/invoices");
+  const open = invoices.data?.filter((i) => i.status === "open") ?? [];
+  const payment = !invoices.data ? "…" : open.some((i) => i.overdue) ? "Overdue" : open.length ? "Due" : "Paid";
   const row = (label: string, value: string) => (
     <div className="flex justify-between border-t-[0.5px] border-line py-2 text-[13px] text-muted">
       <span>{label}</span>
@@ -144,7 +166,7 @@ function PlanCard() {
       ) : (
         <>
           <div className="my-2 text-[28px] font-bold text-navy">{data.plan?.name ?? "No plan"}</div>
-          <div className="mb-3.5" />
+          <div className={`mb-3.5 text-[13px] ${payment === "Overdue" ? "font-semibold text-danger" : "text-muted"}`}>Payment: {payment}</div>
           {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
           {row("Users", fmtLimit(data.users.used, data.users.limit))}
@@ -173,7 +195,7 @@ function JobCards() {
       ) : jobs.data.items.length === 0 ? (
         <Card className="text-sm text-muted">{search || status !== "all" ? "No jobs match." : "No jobs you can see yet."}</Card>
       ) : (
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {jobs.data.items.map((j) => (
             <Link key={j.id} href={`/jobs/${j.id}`} className="block rounded-xl bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,99,152,.2)]">
               <div className="text-xs font-semibold text-info">{j.number}</div>

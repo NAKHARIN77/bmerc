@@ -46,7 +46,7 @@ export function CustomersPage() {
         }}
         placeholder={showEmail ? "Search by customer or email" : "Search by customer"}
       />
-      {s && s.countries.length > 1 && (
+      {s && s.countries.length > 0 && (
         <Pills
           label="Country"
           options={[{ value: "all", label: "All" }, ...s.countries.map((c) => ({ value: c, label: c }))]}
