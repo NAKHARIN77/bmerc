@@ -15,7 +15,6 @@ export interface PlatformCompany {
   usage: { jobsThisMonth: number; sites: number; users: number };
   sites: number;
   jobs: { open: number; waitingParts: number; cannotRepair: number; atQc: number };
-  lowStock: number;
 }
 
 export interface PlatformOverview {
@@ -25,7 +24,6 @@ export interface PlatformOverview {
   pendingPayments: number;
   companies: Partial<Record<"active" | "suspended" | "closed", number>>;
   jobs: { byStatus: Partial<Record<string, number>>; open: number };
-  lowStock: number;
   revenue: Array<{ month: string; collectedCents: number }>;
 }
 

@@ -13,6 +13,8 @@ const OWNER = 'owner@bmerc.demo';
 const ADMIN = 'admin@siamhash.demo';
 const owner = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.MIGRATE_DATABASE_URL }) });
 
+const appDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+
 describe('Platform owner console (e2e)', () => {
   let app: INestApplication;
   const http = () => request(app.getHttpServer());
@@ -43,6 +45,7 @@ describe('Platform owner console (e2e)', () => {
     await owner.$executeRaw`UPDATE subscriptions SET override_limits = NULL WHERE company_id = ${eastern.id}::uuid`;
     await owner.plan.update({ where: { id: basic.id }, data: { priceCents: basic.priceCents, features: basic.features as string[] } });
     await owner.$disconnect();
+    await appDb.$disconnect();
     await app.close();
   });
 
@@ -93,11 +96,27 @@ describe('Platform owner console (e2e)', () => {
     await post(OWNER, `/platform/invoices/${paid.id}/reject`).expect(409);
   });
 
-  it('lists sites, stock, revenue, reports and health', async () => {
-    expect((await get(OWNER, '/platform/sites').expect(200)).body.length).toBeGreaterThan(0);
-    expect((await get(OWNER, '/platform/stock').expect(200)).body.counts).toMatchObject({ skus: expect.any(Number) });
+  it('lists sites, revenue, reports and health', async () => {
+    const sites = (await get(OWNER, '/platform/sites').expect(200)).body;
+    expect(sites.length).toBeGreaterThan(0);
+    expect(sites[0]).not.toHaveProperty('partsInStock');
     expect((await get(OWNER, '/platform/revenue?period=week').expect(200)).body.rows).toHaveLength(4);
     expect((await get(OWNER, '/platform/reports?period=day').expect(200)).body.newCompanies).toHaveLength(7);
     expect((await get(OWNER, '/platform/health').expect(200)).body.database.ok).toBe(true);
+  });
+  it("has no access to a company's parts, stock or customers (decided 2026-11-24)", async () => {
+    await get(OWNER, '/platform/stock').expect(404);
+    const companies = (await get(OWNER, '/platform/companies').expect(200)).body;
+    expect(companies[0]).not.toHaveProperty('lowStock');
+    expect((await get(OWNER, '/platform/overview').expect(200)).body).not.toHaveProperty('lowStock');
+    // The database refuses too: with the platform flag on, the app role reads sites but no stock or customer rows.
+    const rows = await appDb.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.platform_admin', 'on', true)`;
+      return tx.$queryRaw<Array<Record<string, bigint>>>`SELECT
+        (SELECT count(*) FROM sites) AS sites, (SELECT count(*) FROM parts) AS parts, (SELECT count(*) FROM site_stock) AS stock,
+        (SELECT count(*) FROM stock_movements) AS movements, (SELECT count(*) FROM stock_transfers) AS transfers, (SELECT count(*) FROM customers) AS customers`;
+    });
+    expect(Number(rows[0].sites)).toBeGreaterThan(0);
+    expect(rows[0]).toMatchObject({ parts: 0n, stock: 0n, movements: 0n, transfers: 0n, customers: 0n });
   });
 });

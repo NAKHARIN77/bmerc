@@ -18,7 +18,6 @@ interface OwnerSite {
   teams: number;
   technicians: number;
   openJobs: number;
-  partsInStock: number;
 }
 
 /** Owner "Sites": every repair-center site of every company. */
@@ -62,7 +61,6 @@ function Sites() {
           { header: "Teams", cell: (s) => s.teams },
           { header: "Technicians", cell: (s) => s.technicians },
           { header: "Open jobs", cell: (s) => s.openJobs },
-          { header: "Parts", cell: (s) => s.partsInStock },
         ]}
       />
     </>

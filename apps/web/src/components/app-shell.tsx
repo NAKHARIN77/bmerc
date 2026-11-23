@@ -44,7 +44,6 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
 const OWNER_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all", also: ["/platform/companies"] },
   { label: "Sites", href: "/platform/sites", icon: "pin", roles: "all" },
-  { label: "Stock", href: "/platform/stock", icon: "box", roles: "all" },
   { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
   { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
   { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
