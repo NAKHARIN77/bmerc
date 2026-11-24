@@ -48,9 +48,13 @@ describe('Miner models (e2e)', () => {
   });
 
   it('a job shows the model of its device', async () => {
-    const job = (await get(ADMIN, '/jobs?limit=1').expect(200)).body.items[0];
-    const detail = (await get(ADMIN, `/jobs/${job.id}`).expect(200)).body;
+    const jobs = (await get(ADMIN, '/jobs?limit=100').expect(200)).body.items as Array<{ id: string; device: { model: string } }>;
+    // Models on the list (Antminer) link to it; a model not on the list (Whatsminer, removed) keeps only its name.
+    const listed = jobs.find((j) => j.device.model.startsWith('Antminer'))!;
+    const detail = (await get(ADMIN, `/jobs/${listed.id}`).expect(200)).body;
     expect(detail.device.minerModel?.name).toBe(detail.device.model);
+    const unlisted = jobs.find((j) => j.device.model.startsWith('Whatsminer'));
+    if (unlisted) expect((await get(ADMIN, `/jobs/${unlisted.id}`).expect(200)).body.device.minerModel).toBeNull();
   });
 
   it('the platform owner adds, corrects and checks a model', async () => {

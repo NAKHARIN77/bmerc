@@ -87,6 +87,13 @@ function Shell({ children }: { children: ReactNode }) {
   const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
   const menu = me.isPlatformAdmin ? [{ group: "Main menu", items: OWNER_NAV }] : NAV;
   const rk = roleKey(me);
+  // Only one menu item lights up: the one whose path matches the current page most closely
+  // (e.g. /stock/requests is "Part requests", not "Sites", even though Sites also covers /stock).
+  const matchLen = (i: NavItem) =>
+    Math.max(-1, ...[i.href, ...(i.also ?? [])].filter((h) => pathname === h || pathname.startsWith(`${h}/`)).map((h) => h.length));
+  const activeHref = menu
+    .flatMap((g) => g.items.filter(visible))
+    .reduce<{ href: string | null; len: number }>((best, i) => (matchLen(i) > best.len ? { href: i.href, len: matchLen(i) } : best), { href: null, len: -1 }).href;
   const home = pathname === "/dashboard" || (pathname === "/board" && (me.role === "technician" || me.role === "head_technician"));
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
@@ -140,7 +147,7 @@ function Shell({ children }: { children: ReactNode }) {
             <div key={group}>
               <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{roleLabel(rk)} menu</div>
               {shown.map((i) => {
-                const active = [i.href, ...(i.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
+                const active = i.href === activeHref;
                 return (
                   <Link
                     key={i.href}

@@ -1,0 +1,58 @@
+# การดูแลระบบ: สำรองข้อมูล และแจ้งเตือนเมื่อเว็บล่ม
+
+## 1. สำรองข้อมูล (backup)
+
+ใช้คำสั่ง `npm run db:backup` ซึ่งทำงานดังนี้:
+
+- dump ฐานข้อมูลทั้งก้อนเป็นไฟล์เดียว เช่น `backups/bmerc-20261124-1657.dump` (บีบอัดแล้ว)
+- อ่านไฟล์กลับมาตรวจว่าใช้ได้จริง ถ้าใช้ไม่ได้จะขึ้น `Backup FAILED` และจบด้วย exit code 1
+- ลบไฟล์ที่เก่ากว่า 14 วันทิ้ง
+
+| ตัวแปร | ค่าเริ่มต้น | ความหมาย |
+|---|---|---|
+| `BACKUP_DATABASE_URL` | `MIGRATE_DATABASE_URL` ใน `apps/api/.env` | ฐานข้อมูลที่จะสำรอง ต้องเป็น role ที่อ่านได้ทุกแถว (superuser หรือมี `BYPASSRLS`) เพราะตารางของบริษัทเปิด row-level security ไว้ |
+| `BACKUP_DIR` | `backups/` | โฟลเดอร์ที่เก็บไฟล์ (โฟลเดอร์นี้ไม่ขึ้น git) |
+| `BACKUP_KEEP_DAYS` | `14` | เก็บย้อนหลังกี่วัน |
+| `PG_CONTAINER` | ไม่ตั้ง | ถ้าเครื่องไม่มี `pg_dump` ให้ใส่ชื่อ container ของฐานข้อมูล เช่น `bmerc-db-1` |
+
+**ตั้งให้รันเองทุกวัน**
+
+- **Linux (เซิร์ฟเวอร์จริง)** ใส่ใน `crontab -e` ให้รันทุกวันตี 3:
+  ```
+  0 3 * * * cd /srv/bmerc && npm run -s db:backup >> /var/log/bmerc-backup.log 2>&1
+  ```
+- **Windows** สร้างงานใน Task Scheduler ให้รันทุกวัน:
+  ```
+  schtasks /Create /SC DAILY /ST 03:00 /TN "BMERC backup" /TR "cmd /c cd /d D:\bmerc && set PG_CONTAINER=bmerc-db-1 && npm run -s db:backup >> backups\backup.log 2>&1"
+  ```
+
+**เก็บไว้นอกเครื่องด้วย** ถ้าเครื่องเสีย backup ในเครื่องเดียวกันก็หายไปด้วย ให้คัดลอกโฟลเดอร์ `backups/` ไปที่อื่นทุกวัน เช่น S3, Backblaze B2 หรือ Google Drive (ใช้ `rclone copy backups remote:bmerc-backups`) ถ้าใช้ PostgreSQL แบบ managed (เช่น DigitalOcean, Supabase หรือ RDS) ผู้ให้บริการจะสำรองให้อีกชั้นหนึ่ง ให้เปิดใช้ด้วย
+
+## 2. ทดลองกู้คืน (restore test)
+
+ใช้คำสั่ง `npm run db:restore-test` (หรือระบุไฟล์ เช่น `npm run db:restore-test -- backups/bmerc-20261124-1657.dump`)
+
+- กู้ไฟล์ backup ล่าสุดลงฐานข้อมูลทดลองชื่อ `bmerc_restore_test` แล้วเทียบจำนวนแถวกับของจริง
+- เสร็จแล้วลบฐานข้อมูลทดลองทิ้ง **ไม่แตะข้อมูลจริง**
+- ควรทำ**ก่อนเปิดขาย 1 ครั้ง** แล้วทำซ้ำทุกเดือน
+
+**กู้คืนจริงเมื่อเกิดเหตุ** (ข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด ให้หยุด API ก่อน):
+```
+pg_restore --clean --if-exists --dbname="$BACKUP_DATABASE_URL" backups/bmerc-YYYYMMDD-HHMM.dump
+```
+
+## 3. แจ้งเตือนเมื่อเว็บล่ม
+
+ระบบมีจุดให้ตรวจสุขภาพที่ `https://<โดเมน>/api/v1/health` ซึ่งเช็กครบทั้ง 3 ชั้นในครั้งเดียว: หน้าเว็บ → API → ฐานข้อมูล ถ้าปกติจะตอบ `{"status":"ok","db":"ok"}` (HTTP 200) ถ้าชั้นไหนล่มจะไม่ได้ 200
+
+ตัวที่เช็กต้องอยู่**นอกเซิร์ฟเวอร์** เพราะถ้าเซิร์ฟเวอร์ล่ม ตัวเช็กที่อยู่ข้างในก็ล่มไปด้วย แนะนำ **UptimeRobot** (ฟรี เช็กทุก 5 นาที) หรือ Better Stack:
+
+1. สมัครที่ uptimerobot.com
+2. Add New Monitor → แบบ **Keyword** → URL `https://<โดเมน>/api/v1/health` → Keyword `"ok"` → เช็กทุก 5 นาที
+3. เพิ่ม monitor อีกอันแบบ **HTTP(s)** สำหรับหน้าแรก `https://<โดเมน>/`
+4. Alert contacts: ใส่อีเมล และเพิ่ม Telegram หรือแอปมือถือของ UptimeRobot เพื่อให้มีแจ้งเตือนเด้งบนโทรศัพท์
+5. ถ้าจะแจ้งลูกค้า สร้าง Status page ได้ฟรี
+
+ทำข้อนี้ตอนเอาเว็บขึ้นจริง เพราะต้องมีโดเมนก่อน
+
+**ภายในระบบ:** หน้า **Platform health** ของเจ้าของระบบแสดงความเร็วฐานข้อมูล เวลาที่ API ทำงานต่อเนื่อง การล็อกอินที่ล้มเหลว และสถานะอีเมล ใช้ดูตอนที่เว็บยังไม่ล่ม แต่เริ่มมีอาการผิดปกติ
