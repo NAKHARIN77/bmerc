@@ -111,17 +111,21 @@ async function main() {
   await db.userSite.create({ data: { companyId: C, userId: manager.id, siteId: site2.id } });
 
   // Parts + stock per site (some below minimum to show "Low")
+  // Which miner models each part fits (names from the miner_models list).
+  const S19_SERIES = ['Antminer S19', 'Antminer S19 Pro', 'Antminer S19j Pro', 'Antminer S19 XP', 'Antminer T19'];
+  const ALL_MODELS = [...S19_SERIES, 'Antminer S21', 'Antminer T21'];
   const partDefs = [
-    { sku: 'CHIP-BM1398', name: 'Hash chip BM1398', category: 'Chips', minQty: 50, s1: 120, s2: 30 },
-    { sku: 'CHIP-BM1362', name: 'Hash chip BM1362', category: 'Chips', minQty: 40, s1: 25, s2: 60 },
-    { sku: 'PSU-APW12', name: 'Power supply APW12', category: 'Power', minQty: 3, s1: 6, s2: 2 },
-    { sku: 'FAN-12038', name: 'Fan 12038 12V', category: 'Cooling', minQty: 20, s1: 44, s2: 18 },
-    { sku: 'CB-S19', name: 'Control board S19', category: 'Boards', minQty: 2, s1: 4, s2: 0 },
-    { sku: 'TP-GEL', name: 'Thermal gel (100g)', category: 'Consumables', minQty: 5, s1: 12, s2: 7 },
+    { sku: 'CHIP-BM1398', name: 'Hash chip BM1398', category: 'Chips', minQty: 50, s1: 120, s2: 30, fits: ['Antminer S19', 'Antminer S19 Pro', 'Antminer T19'] },
+    { sku: 'CHIP-BM1362', name: 'Hash chip BM1362', category: 'Chips', minQty: 40, s1: 25, s2: 60, fits: ['Antminer S19j Pro'] },
+    { sku: 'PSU-APW12', name: 'Power supply APW12', category: 'Power', minQty: 3, s1: 6, s2: 2, fits: S19_SERIES },
+    { sku: 'FAN-12038', name: 'Fan 12038 12V', category: 'Cooling', minQty: 20, s1: 44, s2: 18, fits: ALL_MODELS },
+    { sku: 'CB-S19', name: 'Control board S19', category: 'Boards', minQty: 2, s1: 4, s2: 0, fits: ['Antminer S19', 'Antminer S19 Pro', 'Antminer S19j Pro', 'Antminer T19'] },
+    { sku: 'TP-GEL', name: 'Thermal gel (100g)', category: 'Consumables', minQty: 5, s1: 12, s2: 7, fits: ALL_MODELS },
   ];
+  const modelIdByName = new Map((await db.minerModel.findMany({ select: { id: true, name: true } })).map((m) => [m.name, m.id]));
   const parts: Record<string, string> = {};
   for (const p of partDefs) {
-    const part = await db.part.create({ data: { companyId: C, sku: p.sku, name: p.name, category: p.category, minQty: p.minQty } });
+    const part = await db.part.create({ data: { companyId: C, sku: p.sku, name: p.name, category: p.category, minQty: p.minQty, modelIds: p.fits.flatMap((n) => modelIdByName.get(n) ?? []) } });
     parts[p.sku] = part.id;
     for (const [siteId, qty] of [[site1.id, p.s1], [site2.id, p.s2]] as const) {
       await db.siteStock.create({ data: { companyId: C, siteId, partId: part.id, qty } });

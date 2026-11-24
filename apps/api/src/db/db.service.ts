@@ -24,9 +24,4 @@ export class DbService {
   platform() {
     return forPlatformAdmin(this.raw);
   }
-
-  /** Platform owner acting inside one company (e.g. via the company switcher). */
-  tenantById(companyId: string) {
-    return forTenant(this.raw, companyId);
-  }
 }
