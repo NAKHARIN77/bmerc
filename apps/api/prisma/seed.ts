@@ -151,7 +151,7 @@ async function main() {
   for (const j of jobDefs) {
     n += 1;
     const device = await db.device.create({
-      data: { companyId: C, customerId: j.cust, model: j.model, serialNo: j.serial, hashrateTh: 104, qrCode: j.qr ?? null },
+      data: { companyId: C, customerId: j.cust, model: j.model, minerModelId: modelIdByName.get(j.model) ?? null, serialNo: j.serial, hashrateTh: 104, qrCode: j.qr ?? null },
     });
     const job = await db.job.create({
       data: {
