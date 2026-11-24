@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { ROLE_LABEL, type Role } from "@bmerc/shared";
+import type { Role } from "@bmerc/shared";
+import { Avatar, RoleBadge, roleDoes, roleKey, roleLabel, roleStyle, workplace } from "./role";
 import { SessionProvider, useSession } from "@/lib/session";
 import { Icon, type IconName } from "./icons";
 import { ButtonLink, Card } from "./ui";
 import { useApi } from "@/lib/use-api";
-import type { Usage } from "@/lib/types";
+import type { Me, Usage } from "@/lib/types";
 
 interface NavItem {
   label: string;
@@ -80,7 +81,8 @@ function Shell({ children }: { children: ReactNode }) {
 
   const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
   const menu = me.isPlatformAdmin ? [{ group: "Main menu", items: OWNER_NAV }] : NAV;
-  const who = me.isPlatformAdmin ? "Platform Owner" : me.role ? ROLE_LABEL[me.role] : "No role";
+  const rk = roleKey(me);
+  const home = pathname === "/dashboard" || (pathname === "/board" && (me.role === "technician" || me.role === "head_technician"));
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
   const whenExpanded = flipped ? "inline lg:hidden" : "hidden lg:inline";
@@ -93,6 +95,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-white px-4 sm:px-6">
+        <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${roleStyle(rk).bar}`} />
         <div className="flex items-center gap-3">
           <button
             onClick={() => setFlipped((f) => !f)}
@@ -101,14 +104,20 @@ function Shell({ children }: { children: ReactNode }) {
           >
             <Icon name="menu" />
           </button>
-          <span className="text-base font-bold text-navy">BMERC Admin</span>
+          <span className="text-base font-bold text-navy">BMERC</span>
+          <RoleBadge k={rk} className="hidden sm:inline-flex" />
         </div>
         <div className="flex items-center gap-4">
-          <span className="hidden text-sm font-semibold text-muted sm:inline">
-            {who}
-            {me.company && <> · {me.company.name}</>}
-          </span>
-          <Link href="/account/password" className="hidden text-sm font-semibold text-info hover:underline md:inline">
+          <Link href="/account/password" title="Your account" className="flex items-center gap-2.5">
+            <Avatar name={me.fullName} k={rk} />
+            <span className="hidden leading-tight md:block">
+              <span className="block text-sm font-bold text-ink">{me.fullName}</span>
+              <span className="block max-w-[380px] truncate text-xs text-muted">
+                {roleLabel(rk)} · {workplace(me)}
+              </span>
+            </span>
+          </Link>
+          <Link href="/account/password" className="hidden text-sm font-semibold text-info hover:underline xl:inline">
             Change password
           </Link>
           <button onClick={() => void logout()} className="flex items-center gap-1 text-sm font-semibold text-info hover:underline">
@@ -124,7 +133,7 @@ function Shell({ children }: { children: ReactNode }) {
           if (!shown.length) return null;
           return (
             <div key={group}>
-              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{group}</div>
+              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{roleLabel(rk)} menu</div>
               {shown.map((i) => {
                 const active = [i.href, ...(i.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
                 return (
@@ -153,9 +162,54 @@ function Shell({ children }: { children: ReactNode }) {
       <main className={`ml-[72px] min-h-screen pt-16 transition-[margin] ${mainMargin}`}>
         <div className="px-4 pb-12 pt-6 sm:px-6">
           <QuotaBanner />
+          {home && <Welcome me={me} />}
           {children}
         </div>
       </main>
+    </div>
+  );
+}
+
+/** On the home page: who is signed in, their role and what that role does. Can be hidden until the next sign-in. */
+function Welcome({ me }: { me: Me }) {
+  const key = `bmerc.welcome.${me.id}`;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return sessionStorage.getItem(key) === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  if (hidden) return null;
+  const rk = roleKey(me);
+  return (
+    <div className="mb-5 flex items-center gap-4 rounded-xl bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+      <Avatar name={me.fullName} k={rk} size={48} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <b className="text-lg text-navy">Hello, {me.fullName}</b>
+          <RoleBadge k={rk} />
+        </div>
+        <div className="mt-0.5 text-[13px] text-muted">
+          {me.email} · {workplace(me)}
+        </div>
+        <div className="mt-1 text-[13px] text-ink">{roleDoes(rk)}</div>
+      </div>
+      <button
+        aria-label="Hide"
+        title="Hide until next sign-in"
+        className="shrink-0 rounded-lg p-1.5 text-muted hover:bg-field"
+        onClick={() => {
+          try {
+            sessionStorage.setItem(key, "hidden");
+          } catch {
+            /* private mode: hide for this page only */
+          }
+          setHidden(true);
+        }}
+      >
+        <Icon name="close" size={16} />
+      </button>
     </div>
   );
 }

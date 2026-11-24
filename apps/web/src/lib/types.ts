@@ -15,6 +15,10 @@ export interface Me {
     status: "active" | "suspended" | "closed";
     subscription: { status: string; plan: { code: string; name: string } } | null;
   } | null;
+  /** The user's team and its site (technicians, head technicians). */
+  team: { name: string; site: string } | null;
+  /** Sites linked to the user (site managers, stock keepers). */
+  siteNames: string[];
 }
 
 export interface Page<T> {
