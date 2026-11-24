@@ -1,3 +1,4 @@
+import type { CreditWeights } from "@bmerc/shared";
 // Types and helpers for the platform owner console (/platform/* in the API).
 
 export interface PlatformCompany {
@@ -12,7 +13,7 @@ export interface PlatformCompany {
   hasOverride: boolean;
   payment: "Overdue" | "Due" | "Paid" | "Trial" | "No invoice";
   limits: { jobsPerMonth: number | null; sites: number | null; users: number | null };
-  usage: { jobsThisMonth: number; sites: number; users: number };
+  usage: { creditsThisMonth: number; sites: number; users: number };
   sites: number;
   jobs: { open: number; waitingParts: number; cannotRepair: number; atQc: number };
 }
@@ -42,7 +43,7 @@ export interface PlatformCompanyDetail {
     plan: { id: string; code: string; name: string; priceCents: number; maxJobsPerMonth: number | null; maxSites: number | null; maxUsers: number | null };
   } | null;
   limits: { jobsPerMonth: number | null; sites: number | null; users: number | null };
-  usage: { users: number; sites: number; jobsThisMonth: number };
+  usage: { users: number; sites: number; creditsThisMonth: number };
   sites: Array<{ id: string; name: string; country: string | null; province: string | null; status: string; teams: number; technicians: number; openJobs: number }>;
 }
 
@@ -56,6 +57,7 @@ export interface PlatformPlan {
   maxSites: number | null;
   maxUsers: number | null;
   features: string[];
+  creditWeights: CreditWeights;
   companies: number;
 }
 

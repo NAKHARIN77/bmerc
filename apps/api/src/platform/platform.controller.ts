@@ -17,7 +17,7 @@ import { monthStartUtc, periods } from '../common/periods.js';
 // No access to a company's parts, stock, customers or repair work (decided 2026-11-24); job numbers come from
 // platform_job_counts(), which returns counts only.
 
-type Counts = { company_id: string; site_id: string; status: JobStatus; jobs: bigint; received_this_month: bigint };
+type Counts = { company_id: string; site_id: string; status: JobStatus; jobs: bigint; received_this_month: bigint; credits_this_month: bigint };
 const OPEN: JobStatus[] = ['todo', 'in_repair', 'waiting_parts'];
 
 const LimitsBody = z.object({
@@ -34,6 +34,8 @@ const PlanBody = z
     maxJobsPerMonth: z.number().int().min(0).nullable().optional(),
     maxSites: z.number().int().min(1).nullable().optional(),
     maxUsers: z.number().int().min(1).nullable().optional(),
+    // Applies to companies that buy the plan from now on; existing companies keep the weights they bought.
+    creditWeights: z.object({ inspection: z.number().int().min(0).max(100), chip_replacement: z.number().int().min(0).max(100), board_repair: z.number().int().min(0).max(100) }).optional(),
   })
   .refine((b) => Object.keys(b).length > 0, 'Nothing to update');
 const ReasonBody = z.object({ reason: z.string().trim().max(500).optional() });
@@ -90,7 +92,7 @@ export class PlatformController {
     return Promise.all(
       companies.map(async (c) => {
         const mine = counts.filter((r) => r.company_id === c.id);
-        const n = (pred: (r: Counts) => boolean, k: 'jobs' | 'received_this_month' = 'jobs') => mine.filter(pred).reduce((a, r) => a + Number(r[k]), 0);
+        const n = (pred: (r: Counts) => boolean, k: 'jobs' | 'received_this_month' | 'credits_this_month' = 'jobs') => mine.filter(pred).reduce((a, r) => a + Number(r[k]), 0);
         const limits = await limitsFor(this.db.raw, c.id);
         const siteRows = sites.filter((s) => s.companyId === c.id);
         return {
@@ -101,7 +103,7 @@ export class PlatformController {
           payment: this.paymentOf(c.invoices, c.subscription?.plan.code ?? null),
           limits: { jobsPerMonth: limits.maxJobsPerMonth, sites: limits.maxSites, users: limits.maxUsers },
           usage: {
-            jobsThisMonth: n(() => true, 'received_this_month'),
+            creditsThisMonth: n(() => true, 'credits_this_month'),
             sites: siteRows.filter((s) => s.status !== 'inactive').reduce((a, s) => a + s._count._all, 0),
             users: c._count.users,
           },
@@ -365,11 +367,14 @@ export class PlatformController {
     // Nothing else overdue: a suspended company is activated again by the payment.
     const stillOverdue = await this.db.raw.invoice.count({ where: { companyId: inv.companyId, status: 'open', dueAt: { lt: now }, id: { not: inv.id } } });
     const reactivate = inv.company.status === 'suspended' && stillOverdue === 0;
+    // Credit weights are fixed when a plan is bought: a new plan brings its weights, a renewal keeps the old ones.
+    const sub = await this.db.raw.subscription.findUnique({ where: { companyId: inv.companyId }, select: { planId: true } });
+    const newPlan = inv.planId && sub?.planId !== inv.planId ? await this.db.raw.plan.findUnique({ where: { id: inv.planId }, select: { creditWeights: true } }) : null;
     await this.db.raw.$transaction([
       this.db.raw.invoice.update({ where: { id: inv.id }, data: { status: 'paid', paidAt: now, paymentRef, confirmedById: me.id } }),
       // An invoice for a plan moves the company to that plan for the paid period (checkout = plan change or renewal).
       ...(inv.planId
-        ? [this.db.raw.subscription.update({ where: { companyId: inv.companyId }, data: { planId: inv.planId, status: 'active', currentPeriodStart: inv.periodStart, currentPeriodEnd: inv.periodEnd } })]
+        ? [this.db.raw.subscription.update({ where: { companyId: inv.companyId }, data: { planId: inv.planId, status: 'active', currentPeriodStart: inv.periodStart, currentPeriodEnd: inv.periodEnd, ...(newPlan ? { creditWeights: newPlan.creditWeights ?? undefined } : {}) } })]
         : []),
       ...(reactivate ? [this.db.raw.company.update({ where: { id: inv.companyId }, data: { status: 'active' } })] : []),
     ]);

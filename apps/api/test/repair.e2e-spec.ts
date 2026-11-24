@@ -5,7 +5,7 @@ import request from 'supertest';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/main.js';
-import { PrismaClient } from '../src/generated/prisma/client.js';
+import { Prisma, PrismaClient } from '../src/generated/prisma/client.js';
 
 // Relies on the demo seed. Jobs, devices and stock changes made here are undone in afterAll.
 const PW = 'Demo1234!';
@@ -24,6 +24,9 @@ describe('Repair workflow, stock and device history (e2e)', () => {
   const get = (who: string, path: string) => http().get(`/api/v1${path}`).set(auth(who));
   const post = (who: string, path: string, body?: object) => http().post(`/api/v1${path}`).set(auth(who)).send(body);
   const put = (who: string, path: string, body: object) => http().put(`/api/v1${path}`).set(auth(who)).send(body);
+  const patch = (who: string, path: string, body: object) => http().patch(`/api/v1${path}`).set(auth(who)).send(body);
+  const credits = async () => (await get(ADMIN, '/company/usage').expect(200)).body.creditsThisMonth.used as number;
+  let creditsBefore = 0;
   const del = (who: string, path: string) => http().delete(`/api/v1${path}`).set(auth(who));
 
   const tag = Date.now();
@@ -164,6 +167,11 @@ describe('Repair workflow, stock and device history (e2e)', () => {
 
   it('passes QC with a random QR code; only customer-facing staff return it; closed jobs are locked', async () => {
     const id = jobs[0];
+    creditsBefore = await credits();
+    // The work type sets the credits; it can change until QC. Board repair = 5 under the default weights.
+    expect((await get(ADMIN, `/jobs/${id}`).expect(200)).body.workType).toBe('inspection');
+    await patch(TECH, `/jobs/${id}/work-type`, { workType: 'warp_drive' }).expect(400);
+    await patch(TECH, `/jobs/${id}/work-type`, { workType: 'board_repair' }).expect(200);
     await put(TECH, `/jobs/${id}/components`, [
       { component: 'Hashboard 2', serialNo: `HB-${tag}`, replacementSerialNo: `HBN-${tag}`, workDone: 'Swapped board', result: 'replaced' },
     ]).expect(200);
@@ -172,7 +180,10 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     await post(TECH, `/jobs/${id}/transition`, { to: 'dispatched' }).expect(403);
     await post(ADMIN, `/jobs/${id}/transition`, { to: 'dispatched' }).expect(201);
     await post(ADMIN, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(403);
+    expect((await patch(ADMIN, `/jobs/${id}/work-type`, { workType: 'inspection' }).expect(409)).body.code).toBe('JOB_CHARGED');
     const job = (await get(ADMIN, `/jobs/${id}`).expect(200)).body;
+    expect(job.creditsCharged).toBe(5);
+    expect(await credits()).toBe(creditsBefore + 5);
     const changes = job.events.filter((e: { fromStatus: string | null; toStatus: string }) => e.fromStatus !== e.toStatus).map((e: { toStatus: string }) => e.toStatus);
     expect(changes).toEqual(['todo', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'qc_passed', 'dispatched']);
     expect(job.can).toMatchObject({ assign: false, work: false, dispatch: false, parts: false });
@@ -190,6 +201,32 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     const r = await receive(ADMIN, `T-${tag}-1`).expect(201);
     jobs.push(r.body.id);
     expect((await get(ADMIN, `/jobs/${r.body.id}`).expect(200)).body.device.qrCode).toBe(code);
+  });
+
+  it('the same device again within 7 days counts as one job; cannot-repair jobs are free', async () => {
+    const again = jobs[1]; // same device as jobs[0], which used 5 credits
+    await post(TECH, `/jobs/${again}/transition`, { to: 'in_repair' }).expect(201);
+    await post(TECH, `/jobs/${again}/transition`, { to: 'qc_passed' }).expect(201);
+    expect((await get(ADMIN, `/jobs/${again}`).expect(200)).body.creditsCharged).toBe(0);
+
+    const r = await receive(ADMIN, `T-${tag}-3`, { workType: 'chip_replacement' }).expect(201);
+    jobs.push(r.body.id);
+    await post(TECH, `/jobs/${r.body.id}/transition`, { to: 'in_repair' }).expect(201);
+    await post(TECH, `/jobs/${r.body.id}/transition`, { to: 'unrepairable', reason: 'Board burnt' }).expect(201);
+    expect((await get(ADMIN, `/jobs/${r.body.id}`).expect(200)).body.creditsCharged).toBe(0);
+    expect(await credits()).toBe(creditsBefore + 5);
+  });
+
+  it('when the credits for the month are used up, no new devices come in', async () => {
+    const sub = await owner.subscription.findFirstOrThrow({ where: { companyId: counter!.companyId }, select: { overrideLimits: true } });
+    const used = await credits();
+    await owner.subscription.update({ where: { companyId: counter!.companyId }, data: { overrideLimits: { maxJobsPerMonth: used } } });
+    try {
+      const blocked = await receive(ADMIN, `T-${tag}-q`).expect(409);
+      expect(blocked.body).toMatchObject({ code: 'QUOTA_CREDITS', details: { limit: used, used } });
+    } finally {
+      await owner.subscription.update({ where: { companyId: counter!.companyId }, data: { overrideLimits: sub.overrideLimits ?? Prisma.DbNull } });
+    }
   });
 
   it('a bench test passes the job to QC only when every item passes, and label prints are logged', async () => {

@@ -80,7 +80,8 @@ export class CompanyController {
       plan: limits.plan,
       users: { used: used.users, limit: limits.maxUsers },
       sites: { used: used.sites, limit: limits.maxSites },
-      jobsThisMonth: { used: used.jobsThisMonth, limit: limits.maxJobsPerMonth },
+      creditsThisMonth: { used: used.creditsThisMonth, limit: limits.maxJobsPerMonth },
+      creditWeights: limits.creditWeights,
     };
   }
 }

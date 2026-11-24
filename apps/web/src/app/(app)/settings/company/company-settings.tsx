@@ -165,7 +165,7 @@ export function CompanySettings() {
             <>
               <div className="my-2 text-2xl font-bold text-navy">{usage.data.plan?.name ?? "No plan"}</div>
               {[
-                ["Jobs this month", usage.data.jobsThisMonth],
+                ["Credits this month", usage.data.creditsThisMonth],
                 ["Sites", usage.data.sites],
                 ["Active users", usage.data.users],
               ].map(([label, u]) => {

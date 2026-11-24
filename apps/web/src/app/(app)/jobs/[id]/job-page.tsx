@@ -1,6 +1,7 @@
 "use client";
 
 import { MinerSpec } from "@/components/miner-spec";
+import { WorkTypeField } from "@/components/work-type";
 import { JOB_STATUS_LABEL, type JobStatus } from "@bmerc/shared";
 import { useParams, useSearchParams } from "next/navigation";
 import { useApi } from "@/lib/use-api";
@@ -18,7 +19,7 @@ const RESULT: Record<ComponentResult, string> = { repaired: "Repaired", replaced
 /** Job detail, as in the prototype. Status changes happen on the bench board; tests and parts on the test record page. */
 export function JobPage() {
   const { id } = useParams<{ id: string }>();
-  const { can } = useSession();
+  const { can, me } = useSession();
   const received = useSearchParams().get("received");
   const job = useApi<JobDetail>(`/jobs/${id}`);
   const bench = can("head_technician", "technician");
@@ -84,6 +85,18 @@ export function JobPage() {
                 ["Status", <StatusChip key="s" status={j.status} />],
                 ["Reported fault", j.reportedFault ?? "—"],
                 ["Technician", j.assignee?.fullName ?? "Unassigned"],
+                [
+                  "Work type",
+                  <WorkTypeField
+                    key="w"
+                    jobId={j.id}
+                    value={j.workType}
+                    charged={j.creditsCharged}
+                    editable={j.can.work && ["todo", "in_repair", "waiting_parts"].includes(j.status)}
+                    weights={me.creditWeights}
+                    onSaved={job.reload}
+                  />,
+                ],
               ]}
             />
           </div>

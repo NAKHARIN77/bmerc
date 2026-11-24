@@ -7,8 +7,9 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
-import type { Assignee, CustomerRow, MinerModel, Page, Site, Team } from "@/lib/types";
+import type { Assignee, CustomerRow, MinerModel, Page, Site, Team, Usage } from "@/lib/types";
 import { MinerSpec } from "@/components/miner-spec";
+import { WorkTypeOptions } from "@/components/work-type";
 import { NoAccess } from "@/components/app-shell";
 import { ButtonLink, Field, FormCard, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
 
@@ -32,6 +33,7 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
   const [siteId, setSiteId] = useState(sites.find((x) => x.id === params.get("site"))?.id ?? sites[0]?.id ?? "");
   const [teamId, setTeamId] = useState("");
   const models = useApi<MinerModel[]>("/miner-models");
+  const usage = useApi<Usage>("/company/usage");
   const [model, setModel] = useState("");
   const picked = (models.data ?? []).find((m) => m.name.toLowerCase() === model.trim().toLowerCase()) ?? null;
   const assignees = useApi<Assignee[]>(siteId ? `/jobs/assignees?siteId=${siteId}` : null);
@@ -57,6 +59,7 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
       hashrateTh: hashrate ? Number(hashrate) : null,
       reportedFault: get("reportedFault"),
       priority: get("priority"),
+      workType: get("workType") || "inspection",
       assigneeId: get("assigneeId") || null,
     };
     setBusy(true);
@@ -188,6 +191,13 @@ function ReceiveForm({ customers, sites }: { customers: CustomerRow[]; sites: Si
             {(id) => <Input id={id} name="hashrateTh" type="number" min={0} step="0.01" inputMode="decimal" />}
           </Field>
         </div>
+        <Field label="Work type" error={fields.workType} hint="Sets the credits this job uses when it passes QC. You can change it until then">
+          {(id) => (
+            <Select id={id} name="workType" defaultValue="inspection">
+              <WorkTypeOptions weights={usage.data?.creditWeights} />
+            </Select>
+          )}
+        </Field>
         <Field label="Priority" error={fields.priority}>
           {(id) => (
             <Select id={id} name="priority" defaultValue="normal">

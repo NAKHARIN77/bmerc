@@ -27,7 +27,7 @@ const AssigneesQuery = z.object({ siteId: z.uuid() });
 const DONE: JobStatus[] = ['qc_passed', 'dispatched'];
 
 const listSelect = {
-  id: true, number: true, status: true, priority: true, reportedFault: true, workNote: true, receivedAt: true, updatedAt: true,
+  id: true, number: true, status: true, priority: true, workType: true, creditsCharged: true, reportedFault: true, workNote: true, receivedAt: true, updatedAt: true,
   device: { select: { id: true, kind: true, model: true, serialNo: true, qrCode: true } },
   customer: { select: { id: true, name: true } },
   site: { select: { id: true, name: true } },

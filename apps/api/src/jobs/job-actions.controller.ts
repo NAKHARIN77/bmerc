@@ -9,7 +9,8 @@ import { limitsFor, monthStart } from '../common/limits.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
 import { COMPANY_ROLES, TEAM_ROLES, type AuthUser } from '../auth/auth-user.js';
 import { jobScope } from '../auth/scope.js';
-import { DeviceKind, JobPriority, JobStatus, ComponentResult } from '../generated/prisma/enums.js';
+import { DeviceKind, JobPriority, JobStatus, ComponentResult, WorkType } from '../generated/prisma/enums.js';
+import { REPEAT_DAYS, creditsFor } from '../common/credits.js';
 import type { TenantTx } from '../prisma/tenant.js';
 import { moveStock } from '../stock/ledger.js';
 import { canAssign, canDispatch, canReceive, canUseParts, canWork } from './permissions.js';
@@ -27,10 +28,13 @@ const ReceiveBody = z.object({
   hashrateTh: z.number().min(0).max(100_000).nullable().optional(),
   reportedFault: text(2000).min(3),
   priority: z.enum(JobPriority).default('normal'),
+  workType: z.enum(WorkType).default('inspection'), // sets the credits the job uses when it passes QC
   assigneeId: z.uuid().nullable().optional(),
 });
 const AssignBody = z.object({ assigneeId: z.uuid().nullable() });
 const TransitionBody = z.object({ to: z.enum(JobStatus), note: text(2000).optional(), reason: text(2000).optional() });
+const WorkTypeBody = z.object({ workType: z.enum(WorkType) });
+const WORK_LABEL: Record<WorkType, string> = { inspection: 'Inspection', chip_replacement: 'Chip replacement', board_repair: 'Board repair' };
 const NoteBody = z.object({ workNote: text(4000).nullable() });
 const PartBody = z.object({ partId: z.uuid(), qty: z.number().int().min(1).max(10_000) });
 const ComponentsBody = z
@@ -91,10 +95,11 @@ export class JobActionsController {
       if (!site) throw notFound('Site');
       if (site.status === 'inactive') throw conflict('SITE_INACTIVE', 'This site is inactive. Pick another site');
       if (!customer) throw notFound('Customer');
+      // Credits are taken when a job passes QC; when this month's credits are used up, no new devices come in.
       if (maxJobsPerMonth !== null) {
-        const used = await tx.job.count({ where: { receivedAt: { gte: monthStart() } } });
+        const used = (await tx.job.aggregate({ where: { chargedAt: { gte: monthStart() } }, _sum: { creditsCharged: true } }))._sum.creditsCharged ?? 0;
         if (used >= maxJobsPerMonth) {
-          throw conflict('QUOTA_JOBS', `Your plan allows ${maxJobsPerMonth} new jobs a month. Upgrade the plan to receive more`, { limit: maxJobsPerMonth, used });
+          throw conflict('QUOTA_CREDITS', `This month's ${maxJobsPerMonth} credits are used up. Upgrade the plan to receive more devices`, { limit: maxJobsPerMonth, used });
         }
       }
       const assigneeName = b.assigneeId ? await this.assertAssignee(tx, me, b.assigneeId, b.siteId) : null;
@@ -122,7 +127,7 @@ export class JobActionsController {
       const created = await tx.job.create({
         data: {
           companyId, number: jobNumber(year, value), deviceId: device.id, customerId: b.customerId, siteId: b.siteId,
-          assigneeId: b.assigneeId ?? null, priority: b.priority, reportedFault: b.reportedFault,
+          assigneeId: b.assigneeId ?? null, priority: b.priority, workType: b.workType, reportedFault: b.reportedFault,
         },
         select: { id: true, number: true },
       });
@@ -157,11 +162,31 @@ export class JobActionsController {
     return { ok: true };
   }
 
+  /** Change the kind of work (and so the credits it will use) until the job passes QC. */
+  @Roles('company_admin', 'site_manager', 'head_technician', 'technician')
+  @Patch(':id/work-type')
+  async workType(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
+    const { workType } = parse(WorkTypeBody, body);
+    const job = await this.db.tenantTx(me, async (tx) => {
+      const job = await this.lockJob(tx, me, id);
+      if (!['todo', 'in_repair', 'waiting_parts'].includes(job.status)) throw conflict('JOB_CHARGED', 'The work type is fixed once the job has passed QC or closed');
+      if (!canWork(me, job)) throw forbidden('You cannot change this job');
+      if (job.workType !== workType) {
+        await tx.job.update({ where: { id: job.id }, data: { workType } });
+        await tx.jobEvent.create({ data: { companyId: me.companyId!, jobId: job.id, fromStatus: job.status, toStatus: job.status, actorId: me.id, note: `Work type: ${WORK_LABEL[workType]}` } });
+      }
+      return job;
+    });
+    await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'job.work_type_changed', entityType: 'job', entityId: job.id, before: { workType: job.workType }, after: { workType }, ip: req.ip });
+    return { workType };
+  }
+
   /** Move a job along the board. Not allowed moves return 409 so the card goes back. */
   @Roles('company_admin', 'site_manager', 'head_technician', 'technician')
   @Post(':id/transition')
   async transition(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const b = parse(TransitionBody, body);
+    const weights = b.to === 'qc_passed' ? (await limitsFor(this.db.raw, me.companyId!)).creditWeights : null;
     const out = await this.db.tenantTx(me, async (tx) => {
       const job = await this.lockJob(tx, me, id);
       if (!canMove(job.status, b.to)) {
@@ -183,7 +208,7 @@ export class JobActionsController {
         throw conflict('NOTE_REQUIRED', MSG_REQUIRED[b.to]);
       }
       if (b.to === 'unrepairable') data.unrepairableReason = note;
-      if (b.to === 'qc_passed') data.qcPassedAt = new Date();
+      if (b.to === 'qc_passed') Object.assign(data, { qcPassedAt: new Date() }, await this.charge(tx, job, weights!));
       if (b.to === 'dispatched') data.dispatchedAt = new Date();
 
       let qrCode: string | null = null;
@@ -292,6 +317,7 @@ export class JobActionsController {
     const b = parse(TestBody, body);
     const values = Object.values(b.results);
     const passed = values.every((v) => v === 'pass');
+    const weights = passed ? (await limitsFor(this.db.raw, me.companyId!)).creditWeights : null;
     const out = await this.db.tenantTx(me, async (tx) => {
       const job = await this.lockJob(tx, me, id);
       if (!canWork(me, job) || (me.role === 'technician' && job.assigneeId !== me.id)) throw forbidden('You cannot change this job');
@@ -311,7 +337,7 @@ export class JobActionsController {
       const note = passed ? 'Test passed' : fails.length ? `Test failed: ${fails.join(', ')}` : 'Test recorded (not complete)';
       if (to) {
         if (to === 'qc_passed') qrCode = await this.ensureQr(tx, job.deviceId);
-        await tx.job.update({ where: { id: job.id }, data: { status: to, ...(to === 'qc_passed' ? { qcPassedAt: new Date() } : {}) } });
+        await tx.job.update({ where: { id: job.id }, data: { status: to, ...(to === 'qc_passed' ? { qcPassedAt: new Date(), ...(await this.charge(tx, job, weights!)) } : {}) } });
       }
       await tx.jobEvent.create({ data: { companyId: me.companyId!, jobId: job.id, fromStatus: job.status, toStatus: to ?? job.status, actorId: me.id, note } });
       return { job, to, qrCode };
@@ -344,10 +370,21 @@ export class JobActionsController {
     await tx.$queryRaw`SELECT id FROM jobs WHERE id = ${jobId}::uuid FOR UPDATE`;
     const job = await tx.job.findFirst({
       where: { AND: [{ id: jobId }, jobScope(me)] },
-      select: { id: true, number: true, status: true, assigneeId: true, siteId: true, deviceId: true },
+      select: { id: true, number: true, status: true, assigneeId: true, siteId: true, deviceId: true, workType: true },
     });
     if (!job) throw notFound('Job');
     return job;
+  }
+
+  /**
+   * Credits for a job that passes QC (decided 2026-11-24): the weight of its work type, from the weights the
+   * company bought. The same device passing QC again within REPEAT_DAYS counts as one job at the highest weight.
+   */
+  private async charge(tx: TenantTx, job: { id: string; deviceId: string; workType: WorkType }, weights: Record<WorkType, number>) {
+    const now = new Date();
+    const since = new Date(now.getTime() - REPEAT_DAYS * 86_400_000);
+    const before = await tx.job.aggregate({ where: { deviceId: job.deviceId, id: { not: job.id }, chargedAt: { gte: since } }, _sum: { creditsCharged: true } });
+    return { creditsCharged: creditsFor(weights[job.workType], before._sum.creditsCharged ?? 0), chargedAt: now };
   }
 
   /** Assignee must be an active technician in a team at the job's site; a head technician picks only from their team. */

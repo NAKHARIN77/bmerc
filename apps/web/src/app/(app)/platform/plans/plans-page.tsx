@@ -1,5 +1,7 @@
 "use client";
 
+import { WORK_TYPES, WORK_TYPE_LABEL, type WorkType } from "@bmerc/shared";
+
 import { useState } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -25,7 +27,7 @@ function Plans() {
       <PageHeader title="Plans" subtitle="Edit plan prices and what each plan includes. Changes show on the pricing page and in company subscriptions" />
       <div className="grid gap-4 lg:grid-cols-2">
         {plans.data.map((p) => (
-          <PlanEditor key={`${p.id}:${p.priceCents}:${p.features.join("|")}:${p.maxJobsPerMonth}:${p.maxSites}:${p.maxUsers}`} plan={p} saved={plans.reload} />
+          <PlanEditor key={`${p.id}:${JSON.stringify(p.creditWeights)}:${p.priceCents}:${p.features.join("|")}:${p.maxJobsPerMonth}:${p.maxSites}:${p.maxUsers}`} plan={p} saved={plans.reload} />
         ))}
       </div>
       <Card className="mt-4">
@@ -59,6 +61,7 @@ function PlanEditor({ plan: p, saved }: { plan: PlatformPlan; saved: () => void 
   const [jobs, setJobs] = useState(showLimit(p.maxJobsPerMonth));
   const [sites, setSites] = useState(showLimit(p.maxSites));
   const [users, setUsers] = useState(showLimit(p.maxUsers));
+  const [weights, setWeights] = useState<Record<WorkType, string>>(() => Object.fromEntries(WORK_TYPES.map((t) => [t, String(p.creditWeights[t])])) as Record<WorkType, string>);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -74,6 +77,7 @@ function PlanEditor({ plan: p, saved }: { plan: PlatformPlan; saved: () => void 
           maxJobsPerMonth: asLimit(jobs),
           maxSites: asLimit(sites),
           maxUsers: asLimit(users),
+          creditWeights: Object.fromEntries(WORK_TYPES.map((t) => [t, Number(weights[t])])),
         },
       });
       setMsg({ ok: true, text: "Saved" });
@@ -95,7 +99,7 @@ function PlanEditor({ plan: p, saved }: { plan: PlatformPlan; saved: () => void 
       <div className="mt-3">
         <Field label={`Price per month (${p.currency}, before VAT)`}>{(id) => <Input id={id} type="number" min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />}</Field>
         <div className="grid gap-x-3 sm:grid-cols-3">
-          <Field label="Job orders / month" hint="Empty = no limit">
+          <Field label="Credits / month" hint="Empty = no limit">
             {(id) => <Input id={id} type="number" min={0} value={jobs} onChange={(e) => setJobs(e.target.value)} />}
           </Field>
           <Field label="Sites" hint="Empty = no limit">
@@ -105,6 +109,16 @@ function PlanEditor({ plan: p, saved }: { plan: PlatformPlan; saved: () => void 
             {(id) => <Input id={id} type="number" min={1} value={users} onChange={(e) => setUsers(e.target.value)} />}
           </Field>
         </div>
+        <fieldset className="mb-4">
+          <legend className="mb-1.5 text-xs font-medium text-muted">Credits per job, by work type. Changes apply to companies that buy this plan from now on; companies already on it keep their weights.</legend>
+          <div className="grid gap-x-3 sm:grid-cols-3">
+            {WORK_TYPES.map((t) => (
+              <Field key={t} label={WORK_TYPE_LABEL[t]}>
+                {(id) => <Input id={id} type="number" min={0} max={100} step={1} value={weights[t]} onChange={(e) => setWeights((w) => ({ ...w, [t]: e.target.value }))} />}
+              </Field>
+            ))}
+          </div>
+        </fieldset>
         <Field label="What is included (one line each)">{(id) => <Textarea id={id} className="h-40" value={features} onChange={(e) => setFeatures(e.target.value)} />}</Field>
       </div>
       {msg && !msg.ok && <Alert>{msg.text}</Alert>}
