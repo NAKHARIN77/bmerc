@@ -62,7 +62,7 @@ export class AuthService {
         data: { name: input.companyName, country: input.country, currency: defaultCurrency(input.country), billingEmail: email },
       });
       await tx.subscription.create({
-        data: { companyId: company.id, planId: basic.id, status: 'active', currentPeriodStart: now, currentPeriodEnd: end },
+        data: { companyId: company.id, planId: basic.id, status: 'active', currentPeriodStart: now, currentPeriodEnd: end, creditWeights: basic.creditWeights ?? undefined },
       });
       return tx.user.create({
         data: { companyId: company.id, email, passwordHash, fullName: input.fullName, role: 'company_admin' },

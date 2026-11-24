@@ -42,13 +42,13 @@ async function main() {
   const basic = await db.plan.create({
     data: {
       code: 'basic', name: 'Basic', priceCents: 9900, maxJobsPerMonth: 200, maxSites: 2, maxUsers: 5,
-      features: ['Up to 200 job orders per month (adjustable by admin)', '1 user account that manages everything', 'Stock deduction included', 'Alert at 80% of monthly job orders'],
+      features: ['200 credits per month (adjustable by admin)', 'Credits per job: inspection 1, chip replacement 3, board repair 5', 'Stock deduction included', 'Alert at 80% of monthly credits'],
     },
   });
   const pro = await db.plan.create({
     data: {
       code: 'pro', name: 'Pro', priceCents: 29900, maxJobsPerMonth: null, maxSites: null, maxUsers: null,
-      features: ['Unlimited job orders', 'Multiple repair-center sites', 'Roles: Site Manager, Head Technician, Technician, Stock Keeper', 'Head Technician assigns jobs to technicians', 'Audit log and QR labels'],
+      features: ['Unlimited credits', 'Multiple repair-center sites', 'Roles: Site Manager, Head Technician, Technician, Stock Keeper', 'Head Technician assigns jobs to technicians', 'Audit log and QR labels'],
     },
   });
 

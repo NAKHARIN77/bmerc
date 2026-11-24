@@ -1,5 +1,7 @@
 "use client";
 
+import { WORK_TYPE_LABEL } from "@bmerc/shared";
+
 import type { JobStatus } from "@bmerc/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -361,7 +363,9 @@ function JobCard(props: {
       </div>
       <div className="font-semibold text-navy">{j.device.model}</div>
       <div className="mb-1.5 mt-1 text-[13px] text-ink">{j.reportedFault}</div>
-      <div className="text-xs text-muted">{j.customer.name}</div>
+      <div className="text-xs text-muted">
+        {j.customer.name} · {WORK_TYPE_LABEL[j.workType]}
+      </div>
       {test && (
         <div className="mt-1.5 text-xs font-semibold text-navy">
           Test: {test.passed ? "Pass" : "Fail"} on {fmtDate(test.testedOn)}

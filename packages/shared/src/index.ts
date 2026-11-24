@@ -38,6 +38,18 @@ export const DEVICE_KIND_LABEL: Record<DeviceKind, string> = {
   other: 'Other',
 };
 
+// Credits (decided 2026-11-24): the plan quota counts credits, weighted by the kind of work.
+export const WORK_TYPES = ['inspection', 'chip_replacement', 'board_repair'] as const;
+export type WorkType = (typeof WORK_TYPES)[number];
+export const WORK_TYPE_LABEL: Record<WorkType, string> = {
+  inspection: 'Inspection',
+  chip_replacement: 'Chip replacement',
+  board_repair: 'Board repair',
+};
+export type CreditWeights = Record<WorkType, number>;
+/** Default weights for new plans. A company keeps the weights of the plan it bought. */
+export const DEFAULT_CREDIT_WEIGHTS: CreditWeights = { inspection: 1, chip_replacement: 3, board_repair: 5 };
+
 export const JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 export type JobPriority = (typeof JOB_PRIORITIES)[number];
 

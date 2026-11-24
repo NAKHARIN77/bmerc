@@ -23,7 +23,7 @@ type Filter = "all" | "near" | "suspended" | "overdue";
 const pct = (used: number, limit: number | null) => (limit === null ? null : limit === 0 ? 100 : Math.round((used / limit) * 100));
 /** Highest share of any limit in use: 80% and up is "near the limit". */
 const peak = (c: PlatformCompany) =>
-  Math.max(0, ...[pct(c.usage.jobsThisMonth, c.limits.jobsPerMonth), pct(c.usage.sites, c.limits.sites), pct(c.usage.users, c.limits.users)].filter((x): x is number => x !== null));
+  Math.max(0, ...[pct(c.usage.creditsThisMonth, c.limits.jobsPerMonth), pct(c.usage.sites, c.limits.sites), pct(c.usage.users, c.limits.users)].filter((x): x is number => x !== null));
 
 function Meter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const p = pct(used, limit);
@@ -113,7 +113,7 @@ function Quotas() {
                   </div>
                 </div>
                 <div className="flex min-w-[260px] flex-[2] flex-wrap gap-x-5 gap-y-2">
-                  <Meter label="Jobs this month" used={c.usage.jobsThisMonth} limit={c.limits.jobsPerMonth} />
+                  <Meter label="Credits this month" used={c.usage.creditsThisMonth} limit={c.limits.jobsPerMonth} />
                   <Meter label="Sites" used={c.usage.sites} limit={c.limits.sites} />
                   <Meter label="Users" used={c.usage.users} limit={c.limits.users} />
                 </div>

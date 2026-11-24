@@ -167,7 +167,7 @@ function PlanCard() {
         <>
           <div className="my-2 text-[28px] font-bold text-navy">{data.plan?.name ?? "No plan"}</div>
           <div className={`mb-3.5 text-[13px] ${payment === "Overdue" ? "font-semibold text-danger" : "text-muted"}`}>Payment: {payment}</div>
-          {row("Jobs this month", fmtLimit(data.jobsThisMonth.used, data.jobsThisMonth.limit))}
+          {row("Credits this month", fmtLimit(data.creditsThisMonth.used, data.creditsThisMonth.limit))}
           {row("Sites", fmtLimit(data.sites.used, data.sites.limit))}
           {row("Users", fmtLimit(data.users.used, data.users.limit))}
           <Link href="/subscription" className="mt-3 inline-block text-[13px] font-semibold text-info hover:underline">

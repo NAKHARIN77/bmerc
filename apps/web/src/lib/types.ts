@@ -1,3 +1,4 @@
+import type { CreditWeights, WorkType } from "@bmerc/shared";
 import type { DeviceKind, JobPriority, JobStatus, Role } from "@bmerc/shared";
 
 export interface Me {
@@ -19,6 +20,8 @@ export interface Me {
   team: { name: string; site: string } | null;
   /** Sites linked to the user (site managers, stock keepers). */
   siteNames: string[];
+  /** Credits per work type under the company's plan. */
+  creditWeights: CreditWeights | null;
 }
 
 export interface Page<T> {
@@ -68,7 +71,9 @@ export interface Usage {
   plan: { code: string; name: string } | null;
   users: { used: number; limit: number | null };
   sites: { used: number; limit: number | null };
-  jobsThisMonth: { used: number; limit: number | null };
+  creditsThisMonth: { used: number; limit: number | null };
+  /** Credits per work type, fixed when the plan was bought. */
+  creditWeights: CreditWeights;
 }
 
 export interface JobRow {
@@ -76,6 +81,9 @@ export interface JobRow {
   number: string;
   status: JobStatus;
   priority: JobPriority;
+  workType: WorkType;
+  /** Credits taken when the job passed QC (0 before). */
+  creditsCharged: number;
   reportedFault: string | null;
   workNote: string | null;
   receivedAt: string;

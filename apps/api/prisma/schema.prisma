@@ -77,7 +77,10 @@ model Plan {
   name            String
   priceCents      Int     @map("price_cents")
   currency        String  @default("USD")
+  // Credits per month (the column kept its first name): each job uses credits by work type, see creditWeights.
   maxJobsPerMonth Int?    @map("max_jobs_per_month") // null = unlimited
+  // Credits per work type, e.g. {"inspection":1,"chip_replacement":3,"board_repair":5}. Shown before purchase.
+  creditWeights   Json    @default("{\"inspection\":1,\"chip_replacement\":3,\"board_repair\":5}") @map("credit_weights")
   maxSites        Int?    @map("max_sites")
   maxUsers        Int?    @map("max_users")
   features        Json    @default("[]")
@@ -97,6 +100,8 @@ model Subscription {
   currentPeriodStart DateTime           @map("current_period_start")
   currentPeriodEnd   DateTime           @map("current_period_end")
   overrideLimits     Json?              @map("override_limits") // "Edit limits" screen
+  // The plan's credit weights when the company bought it; later edits to the plan do not change them.
+  creditWeights      Json?              @map("credit_weights")
 
   company Company @relation(fields: [companyId], references: [id])
   plan    Plan    @relation(fields: [planId], references: [id])
@@ -228,6 +233,12 @@ enum JobStatus {
   unrepairable
   qc_passed
   dispatched
+}
+
+enum WorkType {
+  inspection
+  chip_replacement
+  board_repair
 }
 
 enum JobPriority {
@@ -368,6 +379,9 @@ model Job {
   assigneeId         String?     @map("assignee_id") @db.Uuid
   status             JobStatus   @default(todo)
   priority           JobPriority @default(normal)
+  workType           WorkType    @default(inspection) @map("work_type") // sets the credits used; editable until QC
+  creditsCharged     Int         @default(0) @map("credits_charged") // credits taken when the job passed QC
+  chargedAt          DateTime?   @map("charged_at")
   reportedFault      String?     @map("reported_fault")
   workNote           String?     @map("work_note")
   unrepairableReason String?     @map("unrepairable_reason")

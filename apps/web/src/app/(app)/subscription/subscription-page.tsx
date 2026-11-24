@@ -1,5 +1,7 @@
 "use client";
 
+import { WORK_TYPES, WORK_TYPE_LABEL } from "@bmerc/shared";
+
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import { fmtDate } from "@/lib/format";
@@ -19,7 +21,7 @@ export function SubscriptionPage() {
   if (!sub.data) return <Loading />;
   const s = sub.data;
   const current = s.company.subscription;
-  const jobs = s.usage.jobsThisMonth;
+  const jobs = s.usage.creditsThisMonth;
   const pct = jobs.limit ? Math.min(100, Math.round((jobs.used * 100) / jobs.limit)) : 0;
   const open = (invoices.data ?? []).filter((i) => i.status === "open");
 
@@ -48,7 +50,7 @@ export function SubscriptionPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <b className="text-base">Current plan: {current?.plan.name ?? "None"}</b>
           <span className="text-muted">
-            Job orders this month: {jobs.used} {jobs.limit === null ? "(no limit)" : `of ${jobs.limit}`}
+            Credits used this month: {jobs.used} {jobs.limit === null ? "(no limit)" : `of ${jobs.limit}`}
             {current && ` · Paid until ${fmtDate(current.currentPeriodEnd)}`}
           </span>
         </div>
@@ -71,6 +73,13 @@ export function SubscriptionPage() {
                   <li key={f}>{f}</li>
                 ))}
               </ul>
+              <div className="mb-4 rounded-lg bg-[#f5f8ff] px-3.5 py-2.5 text-[13px]">
+                <b className="text-ink">{p.maxJobsPerMonth === null ? "Unlimited credits" : `${p.maxJobsPerMonth} credits per month`}</b>
+                <div className="mt-0.5 text-muted">
+                  Credits per job: {WORK_TYPES.map((t) => `${WORK_TYPE_LABEL[t].toLowerCase()} ${(isCurrent ? s.creditWeights : p.creditWeights)[t]}`).join(" · ")}
+                </div>
+                <div className="mt-0.5 text-xs text-muted">Used when a job passes QC. Cannot-repair jobs are free; the same device again within 7 days counts once.{isCurrent ? " These are the weights you bought." : ""}</div>
+              </div>
               <ButtonLink href={`/subscription/checkout?plan=${p.id}`} variant={isCurrent ? "primary" : "secondary"} className="w-full">
                 {isCurrent ? "Renew plan" : `Choose ${p.name}`}
               </ButtonLink>

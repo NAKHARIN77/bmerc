@@ -253,7 +253,7 @@ function Suspended({ name, isAdmin, logout }: { name: string; isAdmin: boolean; 
 }
 
 /**
- * Monthly job quota (design doc section 7): a warning from 80%, and at 100% new jobs are blocked
+ * Monthly credit quota (decided 2026-11-24): a warning from 80%, and at 100% new jobs are blocked
  * (the API refuses them) until next month or an upgrade. Shown to whoever receives devices.
  */
 function QuotaBanner() {
@@ -262,7 +262,7 @@ function QuotaBanner() {
   const show = can("company_admin", "site_manager", "head_technician");
   // Keyed on the page so the numbers refresh after receiving a device (the API ignores the extra parameter).
   const usage = useApi<Usage>(show ? `/company/usage?on=${encodeURIComponent(pathname)}` : null);
-  const j = usage.data?.jobsThisMonth;
+  const j = usage.data?.creditsThisMonth;
   if (!j || j.limit === null || j.limit === 0 || j.used < j.limit * 0.8) return null;
   const full = j.used >= j.limit;
   const pct = Math.round((j.used * 100) / j.limit);
@@ -270,8 +270,8 @@ function QuotaBanner() {
     <div role="status" className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium ${full ? "bg-[#fde8e8] text-danger" : "bg-[#fef3c7] text-warn"}`}>
       <span>
         {full
-          ? `Your plan's ${j.limit} job orders for this month are used up. New devices cannot be received until next month or until you upgrade. Jobs already open carry on as normal.`
-          : `You have used ${j.used} of ${j.limit} job orders this month (${pct}%). At ${j.limit}, new devices cannot be received.`}
+          ? `Your plan's ${j.limit} credits for this month are used up. New devices cannot be received until next month or until you upgrade. Jobs already open carry on as normal.`
+          : `You have used ${j.used} of ${j.limit} credits this month (${pct}%). At ${j.limit}, new devices cannot be received.`}
       </span>
       {can("company_admin") && (
         <ButtonLink href="/subscription" variant="secondary" className="h-9 bg-white">

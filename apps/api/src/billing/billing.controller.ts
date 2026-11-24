@@ -57,8 +57,9 @@ export class BillingController {
       company,
       vatBps: planVatBps(company.country),
       plans,
+      creditWeights: limits.creditWeights, // the weights this company bought
       usage: {
-        jobsThisMonth: { used: usage.jobsThisMonth, limit: limits.maxJobsPerMonth },
+        creditsThisMonth: { used: usage.creditsThisMonth, limit: limits.maxJobsPerMonth },
         sites: { used: usage.sites, limit: limits.maxSites },
         users: { used: usage.users, limit: limits.maxUsers },
       },

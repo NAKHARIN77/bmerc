@@ -71,7 +71,7 @@ function Company() {
               ["Plan", d.subscription ? `${d.subscription.plan.name} · ${usd(d.subscription.plan.priceCents)} / month` : "—"],
               ["Access", d.status === "active" ? <Chip key="a" tone="success">Active</Chip> : <Chip key="a" tone="danger">{d.status === "suspended" ? "Suspended" : "Closed"}</Chip>],
               ["Signed up", fmtDate(d.createdAt)],
-              ["Jobs this month", limitText(d.usage.jobsThisMonth, d.limits.jobsPerMonth)],
+              ["Credits this month", limitText(d.usage.creditsThisMonth, d.limits.jobsPerMonth)],
               ["Sites", limitText(d.usage.sites, d.limits.sites)],
               ["Users", limitText(d.usage.users, d.limits.users)],
             ]}

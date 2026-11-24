@@ -79,7 +79,7 @@ function LimitsForm({ c }: { c: PlatformCompanyDetail }) {
         {error && <Alert>{error}</Alert>}
         <Field label="Company">{(fid) => <Input id={fid} value={c.name} disabled />}</Field>
         <Field label="Plan (linked to company)">{(fid) => <Input id={fid} value={plan?.name ?? "—"} disabled />}</Field>
-        <Field label="Job orders per month">{(fid) => <Input id={fid} value={show(plan?.maxJobsPerMonth)} disabled />}</Field>
+        <Field label="Credits per month">{(fid) => <Input id={fid} value={show(plan?.maxJobsPerMonth)} disabled />}</Field>
         <Field label="Sites">{(fid) => <Input id={fid} value={show(plan?.maxSites)} disabled />}</Field>
         <Field label="Users">{(fid) => <Input id={fid} value={show(plan?.maxUsers)} disabled />}</Field>
         <form onSubmit={save} noValidate className="mt-5 border-t border-soft pt-4">
@@ -88,7 +88,7 @@ function LimitsForm({ c }: { c: PlatformCompanyDetail }) {
             Use only when the customer has an agreed exception. Leave a box empty to follow the plan, or type <b>none</b> for no limit. A reason is required.
           </p>
           <div className="grid gap-x-4 sm:grid-cols-3">
-            <Field label="Job orders per month" error={fields.maxJobsPerMonth}>
+            <Field label="Credits per month" error={fields.maxJobsPerMonth}>
               {(fid) => <Input id={fid} name="maxJobsPerMonth" defaultValue={initial("maxJobsPerMonth")} placeholder="e.g. 220" />}
             </Field>
             <Field label="Sites" error={fields.maxSites}>
