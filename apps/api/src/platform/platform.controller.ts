@@ -301,6 +301,8 @@ export class PlatformController {
       uptimeSeconds: Math.round(process.uptime()),
       database: { ok: true, latencyMs: dbMs, sizeBytes: Number(size[0].bytes) },
       last24h: { logins, failedLogins: failed, auditEvents: events },
+      // Invites and password resets are sent by email only when SMTP_URL is set (see MailService).
+      mail: { configured: !!process.env.SMTP_URL && process.env.SMTP_URL !== 'json', from: process.env.MAIL_FROM ?? null },
       node: process.version,
     };
   }

@@ -1,13 +1,14 @@
 "use client";
 
 import { MinerSpec, boardSlots } from "@/components/miner-spec";
+import { RequestList } from "@/components/part-requests";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import { qs } from "@/lib/use-debounced";
-import type { Assignee, ComponentResult, JobDetail, JobRow, Page, StockPage, TestItem, TestValue } from "@/lib/types";
+import type { Assignee, ComponentResult, JobDetail, JobRow, Page, PartRequest, StockPage, TestItem, TestValue } from "@/lib/types";
 import { Alert, Button, ButtonLink, Card, ErrorState, Field, Input, Loading, PageHeader, Select, Table, Textarea } from "@/components/ui";
 
 const ITEMS: Array<[TestItem, string]> = [
@@ -241,12 +242,16 @@ function Boards({ job: j, editable, reload }: { job: JobDetail; editable: boolea
 
 /** Take parts from the job's site stock (or put them back). */
 function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
-  const stock = useApi<StockPage>(j.can.parts ? `/stock?siteId=${j.site.id}&limit=100` : null);
+  const asking = !j.can.parts && j.can.requestParts; // technicians ask; leads and stock keepers take
+  const stock = useApi<StockPage>(j.can.parts || asking ? `/stock?siteId=${j.site.id}&limit=100` : null);
+  const requests = useApi<PartRequest[]>(`/part-requests?jobId=${j.id}&status=all`);
+  const [note, setNote] = useState("");
   const [partId, setPartId] = useState("");
   const [qty, setQty] = useState("1");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const available = (stock.data?.items ?? []).filter((r) => r.qty > 0);
+  // Asking may be for parts that ran out, so every stocked part shows; taking needs some left.
+  const available = (stock.data?.items ?? []).filter((r) => asking || r.qty > 0);
   // Parts made for this miner model first, then parts with no model set (fans, paste, or not yet linked), then the rest.
   const mid = j.device.minerModel?.id;
   const fits = mid ? available.filter((r) => r.part.modelIds.includes(mid)) : [];
@@ -260,6 +265,7 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
       await fn();
       reload();
       stock.reload();
+      requests.reload();
       return true;
     } catch (e) {
       setError(errorMessage(e));
@@ -271,7 +277,9 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
 
   return (
     <Card>
-      <b className="text-base">Parts used</b>
+      <b id="parts" className="scroll-mt-24 text-base">
+        Parts used
+      </b>
       <div className="mt-3">
         <Table
           rows={j.parts}
@@ -296,20 +304,24 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
           ]}
         />
       </div>
-      {j.can.parts && (
+      {(j.can.parts || asking) && (
         <form
           className="mt-4 flex flex-wrap items-end gap-2.5"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (await run("add", () => api(`/jobs/${j.id}/parts`, { method: "POST", body: { partId, qty: Number(qty) } }))) {
+            const done = asking
+              ? await run("add", () => api(`/jobs/${j.id}/part-requests`, { method: "POST", body: { partId, qty: Number(qty), note: note.trim() || undefined } }))
+              : await run("add", () => api(`/jobs/${j.id}/parts`, { method: "POST", body: { partId, qty: Number(qty) } }));
+            if (done) {
               setPartId("");
               setQty("1");
+              setNote("");
             }
           }}
         >
           <div className="min-w-[200px] flex-1">
             <label htmlFor="part-pick" className="mb-1.5 block text-xs font-medium text-muted">
-              Use a part from {j.site.name} stock
+              {asking ? `Ask the stock keeper for a part (${j.site.name})` : `Use a part from ${j.site.name} stock`}
             </label>
             <Select id="part-pick" value={partId} onChange={(e) => setPartId(e.target.value)} required>
               <option value="">{stock.data ? (available.length ? "Pick a part…" : "No parts in stock at this site") : "Loading…"}</option>
@@ -348,10 +360,27 @@ function Parts({ job: j, reload }: { job: JobDetail; reload: () => void }) {
             </label>
             <Input id="part-qty" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} required />
           </div>
+          {asking && (
+            <div className="min-w-[160px] flex-1">
+              <label htmlFor="part-note" className="mb-1.5 block text-xs font-medium text-muted">
+                Note (optional)
+              </label>
+              <Input id="part-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. for hashboard 2" />
+            </div>
+          )}
           <Button type="submit" busy={busy === "add"} disabled={!partId}>
-            Use part
+            {asking ? "Send request" : "Use part"}
           </Button>
         </form>
+      )}
+      {asking && <p className="mt-2 text-xs text-muted">The job moves to Waiting for parts until the stock keeper gives the parts. They then appear above and in the invoice.</p>}
+      {(requests.data ?? []).length > 0 && (
+        <div className="mt-4">
+          <b className="text-[13px]">Part requests</b>
+          <div className="mt-2">
+            <RequestList rows={requests.data ?? []} busy={busy} run={run} showJob={false} />
+          </div>
+        </div>
       )}
       {error && (
         <div className="mt-3">

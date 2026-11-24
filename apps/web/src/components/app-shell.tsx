@@ -18,6 +18,8 @@ interface NavItem {
   roles: Role[] | "all";
   /** Other pages that belong under this item (highlights it there). */
   also?: string[];
+  /** Show the number of part requests waiting. */
+  badge?: "partRequests";
 }
 
 // One "Main menu" group, as in the prototype: the company admin menu is Dashboard, Customers, Sites,
@@ -34,6 +36,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
       { label: "Scan QR", href: "/scan", icon: "qr", roles: [...BENCH, "stock_keeper"] },
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
+      { label: "Part requests", href: "/stock/requests", icon: "box", roles: [...ADMIN, "stock_keeper", "head_technician"], badge: "partRequests" },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/users", "/stock", "/parts", "/technicians"] },
       { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
       { label: "Subscription", href: "/subscription", icon: "doc", roles: ["company_admin"], also: ["/settings/company"] },
@@ -72,6 +75,8 @@ function Shell({ children }: { children: ReactNode }) {
   const { me, logout } = useSession();
   const pathname = usePathname();
   const [flipped, setFlipped] = useState(false);
+  const decider = !!me.role && ["stock_keeper", "company_admin", "site_manager", "head_technician"].includes(me.role);
+  const pendingRequests = useApi<{ count: number }>(decider && me.company?.status === "active" ? "/part-requests/pending-count" : null);
 
   // A suspended company sees only this page, plus its subscription, invoices and billing details to pay.
   const billingPage = pathname === "/settings/company" || pathname === "/subscription" || pathname.startsWith("/subscription/");
@@ -151,6 +156,14 @@ function Shell({ children }: { children: ReactNode }) {
                       <Icon name={i.icon} />
                     </span>
                     <span className={`truncate ${whenExpanded}`}>{i.label}</span>
+                    {i.badge && !!pendingRequests.data?.count && (
+                      <span
+                        aria-label={`${pendingRequests.data.count} waiting`}
+                        className={`ml-auto min-w-[22px] rounded-full px-1.5 text-center text-xs font-bold ${active ? "bg-white text-primary" : "bg-danger text-white"} ${whenExpanded}`}
+                      >
+                        {pendingRequests.data.count}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

@@ -22,7 +22,7 @@ async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
   await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
-    job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
+    part_requests, job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
     jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
     companies, plans RESTART IDENTITY CASCADE`);
   await db.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');

@@ -278,6 +278,7 @@ function JobCard(props: {
   saved: () => void;
 }) {
   const { job: j, busy, move, askFor, canDispatch } = props;
+  const technician = useSession().me.role === "technician"; // technicians ask the stock keeper on the Record test page
   const test = j.tests[0];
   const printed = j.qrPrintLogs[0];
   const btn = "mt-2 h-9 w-full";
@@ -306,9 +307,17 @@ function JobCard(props: {
         <Button className={btn} busy={busy} onClick={(e) => (stop(e), void move(j, "qc_passed"))}>
           Close Job (Pass to QC)
         </Button>
-        <Button className={btn} variant="secondary" onClick={(e) => (stop(e), askFor(j, "waiting_parts"))}>
-          Request Parts
-        </Button>
+        {technician ? (
+          <span className="block" onClick={stop}>
+            <ButtonLink href={`/jobs/${j.id}/test#parts`} variant="secondary" className={btn} icon="wrench">
+              Request Parts
+            </ButtonLink>
+          </span>
+        ) : (
+          <Button className={btn} variant="secondary" onClick={(e) => (stop(e), askFor(j, "waiting_parts"))}>
+            Request Parts
+          </Button>
+        )}
       </>
     );
   else if (j.status === "waiting_parts")

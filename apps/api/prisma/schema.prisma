@@ -287,6 +287,8 @@ model Site {
   transfersIn    StockTransfer[] @relation("TransferTo")
   userLinks      UserSite[]
 
+  partRequests PartRequest[]
+
   @@index([companyId])
   @@map("sites")
 }
@@ -334,17 +336,17 @@ enum DeviceKind {
 
 // What a customer sends in: a whole miner or a single board / PSU. History is looked up by serial.
 model Device {
-  id         String     @id @default(uuid()) @db.Uuid
-  companyId  String     @map("company_id") @db.Uuid
-  customerId String     @map("customer_id") @db.Uuid
-  kind       DeviceKind @default(miner)
-  model      String // e.g. Antminer S19 Pro, or the board model for a single board
-  serialNo   String     @map("serial_no")
-  hashrateTh Decimal?   @map("hashrate_th") @db.Decimal(10, 2)
-  qrCode     String?    @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  customerId   String     @map("customer_id") @db.Uuid
+  kind         DeviceKind @default(miner)
+  model        String // e.g. Antminer S19 Pro, or the board model for a single board
+  serialNo     String     @map("serial_no")
+  hashrateTh   Decimal?   @map("hashrate_th") @db.Decimal(10, 2)
+  qrCode       String?    @unique @map("qr_code") // random, e.g. BMERC-7K3QX9MD; issued at first QC pass
   // The catalog model this device is, when picked from the list at intake (model above keeps the name).
-  minerModelId String?  @map("miner_model_id") @db.Uuid
-  createdAt  DateTime   @default(now()) @map("created_at")
+  minerModelId String?    @map("miner_model_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at")
 
   company    Company     @relation(fields: [companyId], references: [id])
   customer   Customer    @relation(fields: [customerId], references: [id])
@@ -387,6 +389,8 @@ model Job {
   tests       JobTest[]
   movements   StockMovement[]
   invoice     JobInvoice?
+
+  partRequests PartRequest[]
 
   @@unique([companyId, number])
   @@index([companyId, status])
@@ -544,6 +548,8 @@ model Part {
   transfers StockTransfer[]
   jobParts  JobPart[]
 
+  requests PartRequest[]
+
   @@unique([companyId, sku])
   @@map("parts")
 }
@@ -653,18 +659,18 @@ enum StockTransferStatus {
 // Parts sent from one site to another: the sender books them out, the receiving site confirms arrival
 // (decided 2026-11-22). Cancelling while in transit books them back in at the sending site.
 model StockTransfer {
-  id          String              @id @default(uuid()) @db.Uuid
-  companyId   String              @map("company_id") @db.Uuid
-  fromSiteId  String              @map("from_site_id") @db.Uuid
-  toSiteId    String              @map("to_site_id") @db.Uuid
-  partId      String              @map("part_id") @db.Uuid
-  qty         Int
-  status      StockTransferStatus @default(in_transit)
-  note        String?
-  sentById    String              @map("sent_by_id") @db.Uuid
-  sentAt      DateTime            @default(now()) @map("sent_at")
-  closedById  String?             @map("closed_by_id") @db.Uuid
-  closedAt    DateTime?           @map("closed_at")
+  id         String              @id @default(uuid()) @db.Uuid
+  companyId  String              @map("company_id") @db.Uuid
+  fromSiteId String              @map("from_site_id") @db.Uuid
+  toSiteId   String              @map("to_site_id") @db.Uuid
+  partId     String              @map("part_id") @db.Uuid
+  qty        Int
+  status     StockTransferStatus @default(in_transit)
+  note       String?
+  sentById   String              @map("sent_by_id") @db.Uuid
+  sentAt     DateTime            @default(now()) @map("sent_at")
+  closedById String?             @map("closed_by_id") @db.Uuid
+  closedAt   DateTime?           @map("closed_at")
 
   fromSite Site @relation("TransferFrom", fields: [fromSiteId], references: [id])
   toSite   Site @relation("TransferTo", fields: [toSiteId], references: [id])
@@ -695,4 +701,38 @@ model MinerModel {
   devices Device[]
 
   @@map("miner_models")
+}
+
+enum PartRequestStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+// A technician asks for parts for a job; the stock keeper (or a lead) approves it, which takes the parts
+// out of the job's site stock and puts them on the job, or rejects it with a reason (decided 2026-11-24).
+model PartRequest {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String            @map("company_id") @db.Uuid
+  jobId         String            @map("job_id") @db.Uuid
+  siteId        String            @map("site_id") @db.Uuid
+  partId        String            @map("part_id") @db.Uuid
+  qty           Int
+  note          String?
+  status        PartRequestStatus @default(pending)
+  requestedById String            @map("requested_by_id") @db.Uuid
+  decidedById   String?           @map("decided_by_id") @db.Uuid
+  decidedAt     DateTime?         @map("decided_at")
+  decisionNote  String?           @map("decision_note")
+  jobPartId     String?           @map("job_part_id") @db.Uuid // the parts put on the job when approved
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  job  Job  @relation(fields: [jobId], references: [id])
+  site Site @relation(fields: [siteId], references: [id])
+  part Part @relation(fields: [partId], references: [id])
+
+  @@index([companyId, status])
+  @@index([jobId])
+  @@map("part_requests")
 }
