@@ -1,3 +1,4 @@
+import { MINER_MODEL_SELECT } from '../miner-models/miner-models.controller.js';
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
@@ -166,7 +167,7 @@ export class JobsController {
         ...listSelect,
         assigneeId: true, siteId: true,
         unrepairableReason: true, qcPassedAt: true, dispatchedAt: true,
-        device: { select: { id: true, kind: true, model: true, serialNo: true, hashrateTh: true, qrCode: true } },
+        device: { select: { id: true, kind: true, model: true, serialNo: true, hashrateTh: true, qrCode: true, minerModel: { select: MINER_MODEL_SELECT } } },
         customer: { select: { id: true, name: true, contactName: true, email: true, phone: true } },
         events: { select: { id: true, fromStatus: true, toStatus: true, actorId: true, note: true, createdAt: true }, orderBy: { id: 'asc' } },
         parts: { select: { id: true, qty: true, part: { select: { id: true, name: true, sku: true, unit: true } } }, orderBy: { id: 'asc' } },

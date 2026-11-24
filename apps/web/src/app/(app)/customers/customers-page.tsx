@@ -72,7 +72,7 @@ export function CustomersPage() {
               { header: "Customer", cell: (c) => <CellLink href={`/customers/${c.id}`}>{c.name}</CellLink> },
               ...(showEmail ? [{ header: "Email", cell: (c: CustomerRow) => c.email ?? "—" }] : []),
               { header: "Country", cell: (c) => c.country ?? "—" },
-              { header: "Open jobs", cell: (c) => c.openJobs },
+              { header: "Open jobs", emphasis: true, cell: (c) => c.openJobs },
             ]}
           />
           <Pager page={list.data.page} limit={list.data.limit} total={list.data.total} onPage={setPage} />

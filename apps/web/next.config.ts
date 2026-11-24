@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   transpilePackages: ["@bmerc/shared"],
+  // Dev only: lets a phone on the same Wi-Fi open the dev server by the PC's LAN address (e.g. 192.168.1.53).
+  allowedDevOrigins: ["192.168.*.*"],
   async rewrites() {
     return [{ source: "/api/v1/:path*", destination: `${API_ORIGIN}/api/v1/:path*` }];
   },

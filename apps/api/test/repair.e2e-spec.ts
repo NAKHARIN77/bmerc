@@ -64,6 +64,7 @@ describe('Repair workflow, stock and device history (e2e)', () => {
       await tx.jobPayment.deleteMany({ where: { invoice: { jobId: { in: jobs } } } });
       await tx.jobInvoiceLine.deleteMany({ where: { invoice: { jobId: { in: jobs } } } });
       await tx.jobInvoice.deleteMany({ where: { jobId: { in: jobs } } });
+      await tx.partRequest.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobPart.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.jobTest.deleteMany({ where: { jobId: { in: jobs } } });
       await tx.qrPrintLog.deleteMany({ where: { jobId: { in: jobs } } });
@@ -108,20 +109,55 @@ describe('Repair workflow, stock and device history (e2e)', () => {
   it('uses parts from site stock, refuses more than is left, and returns them with a reverse movement', async () => {
     const id = jobs[0];
     const left = await qty();
-    const over = await post(TECH, `/jobs/${id}/parts`, { partId: part, qty: left + 1 }).expect(409);
+    const over = await post(STOCK, `/jobs/${id}/parts`, { partId: part, qty: left + 1 }).expect(409);
     expect(over.body).toMatchObject({ code: 'STOCK_INSUFFICIENT', details: { available: left } });
-    const used = await post(TECH, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(201);
+    const used = await post(STOCK, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(201);
     expect(await qty()).toBe(left - 1);
-    await del(TECH, `/jobs/${id}/parts/${used.body.id}`).expect(204);
+    await del(STOCK, `/jobs/${id}/parts/${used.body.id}`).expect(204);
     expect(await qty()).toBe(left);
     const moves = await owner.stockMovement.findMany({ where: { jobId: id }, orderBy: { id: 'asc' } });
     expect(moves.map((m) => m.qty)).toEqual([-1, 1]);
   });
 
+  it('technicians ask for parts; the stock keeper approves, rejects, or the technician cancels', async () => {
+    const id = jobs[0];
+    const left = await qty();
+    await post(TECH, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(403); // no direct taking any more
+    const r1 = (await post(TECH, `/jobs/${id}/part-requests`, { partId: part, qty: 1, note: 'chain 2' }).expect(201)).body;
+    expect((await get(ADMIN, `/jobs/${id}`).expect(200)).body.status).toBe('waiting_parts');
+    const mine = (await get(TECH, `/part-requests?jobId=${id}`).expect(200)).body;
+    expect(mine[0]).toMatchObject({ id: r1.id, status: 'pending', canCancel: true, canDecide: false, inStock: left });
+    await post(TECH, `/part-requests/${r1.id}/approve`).expect(403);
+    expect((await get(STOCK, '/part-requests/pending-count').expect(200)).body.count).toBeGreaterThanOrEqual(1);
+    await post(STOCK, `/part-requests/${r1.id}/approve`).expect(201);
+    expect(await qty()).toBe(left - 1);
+    const job = (await get(ADMIN, `/jobs/${id}`).expect(200)).body;
+    expect(job.status).toBe('in_repair');
+    expect(job.parts.some((p: { part: { id: string } }) => p.part.id === part)).toBe(true);
+    await post(STOCK, `/part-requests/${r1.id}/approve`).expect(409); // already decided
+
+    const r2 = (await post(TECH, `/jobs/${id}/part-requests`, { partId: part, qty: left + 50 }).expect(201)).body;
+    expect((await post(STOCK, `/part-requests/${r2.id}/approve`).expect(409)).body.code).toBe('STOCK_INSUFFICIENT');
+    await post(STOCK, `/part-requests/${r2.id}/reject`, { reason: 'x' }).expect(400);
+    await post(STOCK, `/part-requests/${r2.id}/reject`, { reason: 'Not enough in stock' }).expect(201);
+    expect((await get(ADMIN, `/jobs/${id}`).expect(200)).body.status).toBe('in_repair');
+
+    const r3 = (await post(TECH, `/jobs/${id}/part-requests`, { partId: part, qty: 1 }).expect(201)).body;
+    await post(STOCK, `/part-requests/${r3.id}/cancel`).expect(403);
+    await post(TECH, `/part-requests/${r3.id}/cancel`).expect(201);
+    expect((await get(TECH, `/part-requests?jobId=${id}&status=all`).expect(200)).body.map((r: { status: string }) => r.status).sort()).toEqual(['approved', 'cancelled', 'rejected']);
+    expect((await get(ADMIN, `/jobs/${id}`).expect(200)).body.status).toBe('in_repair');
+
+    // Put the approved part back so the next tests start from the same stock.
+    const jp = job.parts.find((p: { part: { id: string } }) => p.part.id === part);
+    await del(STOCK, `/jobs/${id}/parts/${jp.id}`).expect(204);
+    expect(await qty()).toBe(left);
+  });
+
   it('never lets two people take the last parts at once', async () => {
     const id = jobs[0];
     const left = await qty();
-    const [a, b] = await Promise.all([post(TECH, `/jobs/${id}/parts`, { partId: part, qty: left }), post(STOCK, `/jobs/${id}/parts`, { partId: part, qty: left })]);
+    const [a, b] = await Promise.all([post(ADMIN, `/jobs/${id}/parts`, { partId: part, qty: left }), post(STOCK, `/jobs/${id}/parts`, { partId: part, qty: left })]);
     expect([a.status, b.status].sort((x, y) => x - y)).toEqual([201, 409]);
     expect(await qty()).toBe(0);
   });
@@ -137,7 +173,8 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     await post(ADMIN, `/jobs/${id}/transition`, { to: 'dispatched' }).expect(201);
     await post(ADMIN, `/jobs/${id}/parts`, { partId: part, qty: 1 }).expect(403);
     const job = (await get(ADMIN, `/jobs/${id}`).expect(200)).body;
-    expect(job.events.map((e: { toStatus: string }) => e.toStatus)).toEqual(['todo', 'in_repair', 'waiting_parts', 'in_repair', 'qc_passed', 'dispatched']);
+    const changes = job.events.filter((e: { fromStatus: string | null; toStatus: string }) => e.fromStatus !== e.toStatus).map((e: { toStatus: string }) => e.toStatus);
+    expect(changes).toEqual(['todo', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'waiting_parts', 'in_repair', 'qc_passed', 'dispatched']);
     expect(job.can).toMatchObject({ assign: false, work: false, dispatch: false, parts: false });
 
     const dev = (await get(TECH, `/devices/by-qr/${qc.body.qrCode}`).expect(200)).body;

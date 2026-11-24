@@ -102,7 +102,7 @@ export function DevicePage() {
               { header: "Ticket", cell: (p) => <CellLink href={`/jobs/${p.job.id}`}>{p.job.number}</CellLink> },
               { header: "Part", cell: (p) => p.part.name },
               { header: "SKU", cell: (p) => p.part.sku },
-              { header: "Qty", cell: (p) => p.qty },
+              { header: "Qty", emphasis: true, cell: (p) => p.qty },
             ]}
           />
         </>

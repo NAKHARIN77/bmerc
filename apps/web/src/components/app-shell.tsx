@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { ROLE_LABEL, type Role } from "@bmerc/shared";
+import type { Role } from "@bmerc/shared";
+import { Avatar, RoleBadge, roleDoes, roleKey, roleLabel, roleStyle, workplace } from "./role";
 import { SessionProvider, useSession } from "@/lib/session";
 import { Icon, type IconName } from "./icons";
 import { ButtonLink, Card } from "./ui";
 import { useApi } from "@/lib/use-api";
-import type { Usage } from "@/lib/types";
+import type { Me, Usage } from "@/lib/types";
 
 interface NavItem {
   label: string;
@@ -17,6 +18,8 @@ interface NavItem {
   roles: Role[] | "all";
   /** Other pages that belong under this item (highlights it there). */
   also?: string[];
+  /** Show the number of part requests waiting. */
+  badge?: "partRequests";
 }
 
 // One "Main menu" group, as in the prototype: the company admin menu is Dashboard, Customers, Sites,
@@ -33,6 +36,7 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
       { label: "Scan QR", href: "/scan", icon: "qr", roles: [...BENCH, "stock_keeper"] },
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
+      { label: "Part requests", href: "/stock/requests", icon: "box", roles: [...ADMIN, "stock_keeper", "head_technician"], badge: "partRequests" },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/users", "/stock", "/parts", "/technicians"] },
       { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
       { label: "Subscription", href: "/subscription", icon: "doc", roles: ["company_admin"], also: ["/settings/company"] },
@@ -47,6 +51,7 @@ const OWNER_NAV: NavItem[] = [
   { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
   { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
   { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
+  { label: "Miner models", href: "/platform/models", icon: "box", roles: "all" },
   { label: "Revenue", href: "/platform/revenue", icon: "dollar", roles: "all" },
   { label: "Payments", href: "/platform/payments", icon: "dollar", roles: "all" },
   { label: "Pending payments", href: "/platform/pending", icon: "dollar", roles: "all" },
@@ -70,6 +75,8 @@ function Shell({ children }: { children: ReactNode }) {
   const { me, logout } = useSession();
   const pathname = usePathname();
   const [flipped, setFlipped] = useState(false);
+  const decider = !!me.role && ["stock_keeper", "company_admin", "site_manager", "head_technician"].includes(me.role);
+  const pendingRequests = useApi<{ count: number }>(decider && me.company?.status === "active" ? "/part-requests/pending-count" : null);
 
   // A suspended company sees only this page, plus its subscription, invoices and billing details to pay.
   const billingPage = pathname === "/settings/company" || pathname === "/subscription" || pathname.startsWith("/subscription/");
@@ -79,7 +86,8 @@ function Shell({ children }: { children: ReactNode }) {
 
   const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
   const menu = me.isPlatformAdmin ? [{ group: "Main menu", items: OWNER_NAV }] : NAV;
-  const who = me.isPlatformAdmin ? "Platform Owner" : me.role ? ROLE_LABEL[me.role] : "No role";
+  const rk = roleKey(me);
+  const home = pathname === "/dashboard" || (pathname === "/board" && (me.role === "technician" || me.role === "head_technician"));
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
   const whenExpanded = flipped ? "inline lg:hidden" : "hidden lg:inline";
@@ -92,6 +100,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-white px-4 sm:px-6">
+        <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${roleStyle(rk).bar}`} />
         <div className="flex items-center gap-3">
           <button
             onClick={() => setFlipped((f) => !f)}
@@ -100,14 +109,20 @@ function Shell({ children }: { children: ReactNode }) {
           >
             <Icon name="menu" />
           </button>
-          <span className="text-base font-bold text-navy">BMERC Admin</span>
+          <span className="text-base font-bold text-navy">BMERC</span>
+          <RoleBadge k={rk} className="hidden sm:inline-flex" />
         </div>
         <div className="flex items-center gap-4">
-          <span className="hidden text-sm font-semibold text-muted sm:inline">
-            {who}
-            {me.company && <> · {me.company.name}</>}
-          </span>
-          <Link href="/account/password" className="hidden text-sm font-semibold text-info hover:underline md:inline">
+          <Link href="/account/password" title="Your account" className="flex items-center gap-2.5">
+            <Avatar name={me.fullName} k={rk} />
+            <span className="hidden leading-tight md:block">
+              <span className="block text-sm font-bold text-ink">{me.fullName}</span>
+              <span className="block max-w-[380px] truncate text-xs text-muted">
+                {roleLabel(rk)} · {workplace(me)}
+              </span>
+            </span>
+          </Link>
+          <Link href="/account/password" className="hidden text-sm font-semibold text-info hover:underline xl:inline">
             Change password
           </Link>
           <button onClick={() => void logout()} className="flex items-center gap-1 text-sm font-semibold text-info hover:underline">
@@ -123,7 +138,7 @@ function Shell({ children }: { children: ReactNode }) {
           if (!shown.length) return null;
           return (
             <div key={group}>
-              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{group}</div>
+              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{roleLabel(rk)} menu</div>
               {shown.map((i) => {
                 const active = [i.href, ...(i.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
                 return (
@@ -141,6 +156,14 @@ function Shell({ children }: { children: ReactNode }) {
                       <Icon name={i.icon} />
                     </span>
                     <span className={`truncate ${whenExpanded}`}>{i.label}</span>
+                    {i.badge && !!pendingRequests.data?.count && (
+                      <span
+                        aria-label={`${pendingRequests.data.count} waiting`}
+                        className={`ml-auto min-w-[22px] rounded-full px-1.5 text-center text-xs font-bold ${active ? "bg-white text-primary" : "bg-danger text-white"} ${whenExpanded}`}
+                      >
+                        {pendingRequests.data.count}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -152,9 +175,54 @@ function Shell({ children }: { children: ReactNode }) {
       <main className={`ml-[72px] min-h-screen pt-16 transition-[margin] ${mainMargin}`}>
         <div className="px-4 pb-12 pt-6 sm:px-6">
           <QuotaBanner />
+          {home && <Welcome me={me} />}
           {children}
         </div>
       </main>
+    </div>
+  );
+}
+
+/** On the home page: who is signed in, their role and what that role does. Can be hidden until the next sign-in. */
+function Welcome({ me }: { me: Me }) {
+  const key = `bmerc.welcome.${me.id}`;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return sessionStorage.getItem(key) === "hidden";
+    } catch {
+      return false;
+    }
+  });
+  if (hidden) return null;
+  const rk = roleKey(me);
+  return (
+    <div className="mb-5 flex items-center gap-4 rounded-xl bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+      <Avatar name={me.fullName} k={rk} size={48} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <b className="text-lg text-navy">Hello, {me.fullName}</b>
+          <RoleBadge k={rk} />
+        </div>
+        <div className="mt-0.5 text-[13px] text-muted">
+          {me.email} · {workplace(me)}
+        </div>
+        <div className="mt-1 text-[13px] text-ink">{roleDoes(rk)}</div>
+      </div>
+      <button
+        aria-label="Hide"
+        title="Hide until next sign-in"
+        className="shrink-0 rounded-lg p-1.5 text-muted hover:bg-field"
+        onClick={() => {
+          try {
+            sessionStorage.setItem(key, "hidden");
+          } catch {
+            /* private mode: hide for this page only */
+          }
+          setHidden(true);
+        }}
+      >
+        <Icon name="close" size={16} />
+      </button>
     </div>
   );
 }

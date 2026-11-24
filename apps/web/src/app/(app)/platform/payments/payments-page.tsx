@@ -68,7 +68,7 @@ function Payments() {
               { header: "Date", className: "whitespace-nowrap", cell: (i) => fmtDate(i.paidAt ?? i.createdAt) },
               { header: "Company", className: "min-w-[160px]", cell: (i) => i.company.name },
               { header: "Plan", cell: (i) => i.plan ?? "—" },
-              { header: "Amount", className: "whitespace-nowrap", cell: (i) => usd(i.totalCents, i.currency) },
+              { header: "Amount", emphasis: true, className: "whitespace-nowrap", cell: (i) => usd(i.totalCents, i.currency) },
               { header: "Method", cell: (i) => i.paymentRef ?? "—" },
               { header: "Status", cell: (i) => <InvoiceChip invoice={i} /> },
               { header: "Invoice", className: "whitespace-nowrap", cell: (i) => i.number },

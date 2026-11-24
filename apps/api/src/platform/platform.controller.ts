@@ -301,6 +301,8 @@ export class PlatformController {
       uptimeSeconds: Math.round(process.uptime()),
       database: { ok: true, latencyMs: dbMs, sizeBytes: Number(size[0].bytes) },
       last24h: { logins, failedLogins: failed, auditEvents: events },
+      // Invites and password resets are sent by email only when SMTP_URL is set (see MailService).
+      mail: { configured: !!process.env.SMTP_URL && process.env.SMTP_URL !== 'json', from: process.env.MAIL_FROM ?? null },
       node: process.version,
     };
   }
@@ -339,13 +341,14 @@ export class PlatformController {
         select: {
           id: true, number: true, periodStart: true, periodEnd: true, amountCents: true, taxCents: true, taxRateBps: true, currency: true,
           status: true, dueAt: true, paidAt: true, paymentRef: true, slipUploadedAt: true, createdAt: true,
+          plan: { select: { name: true } },
           company: { select: { id: true, name: true, subscription: { select: { plan: { select: { name: true } } } } } },
         },
       }),
       this.db.raw.invoice.count({ where }),
     ]);
     const now = new Date();
-    return paged(rows.map(({ company, ...i }) => ({ ...i, totalCents: total(i), overdue: i.status === 'open' && i.dueAt < now, company: { id: company.id, name: company.name }, plan: company.subscription?.plan.name ?? null })), count, q);
+    return paged(rows.map(({ company, plan, ...i }) => ({ ...i, totalCents: total(i), overdue: i.status === 'open' && i.dueAt < now, company: { id: company.id, name: company.name }, plan: plan?.name ?? company.subscription?.plan.name ?? null })), count, q);
   }
 
   /** Confirm a payment by hand (bank transfer, or until the payment provider is connected). */

@@ -100,7 +100,7 @@ export function SubscriptionPage() {
             { header: "Invoice", cell: (i) => <CellLink href={`/subscription/invoices/${i.id}`}>{i.number}</CellLink> },
             { header: "Date", cell: (i) => fmtDate(i.createdAt) },
             { header: "Plan", cell: (i) => i.plan?.name ?? "—" },
-            { header: "Amount", cell: (i) => money(i.totalCents, i.currency) },
+            { header: "Amount", emphasis: true, cell: (i) => money(i.totalCents, i.currency) },
             { header: "Status", cell: (i) => <InvoiceStatus invoice={i} /> },
           ]}
         />

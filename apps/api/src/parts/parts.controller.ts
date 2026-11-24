@@ -14,6 +14,7 @@ const PartBody = z.object({
   sku: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dot, dash and underscore only'),
   name: z.string().trim().min(2).max(200),
   category: z.string().trim().max(100).nullable().optional(),
+  modelIds: z.array(z.uuid()).max(50).optional(), // miner models it fits; empty = any model
   unit: z.string().trim().min(1).max(20).optional(),
   minQty: z.number().int().min(0).max(1_000_000).optional(),
   isActive: z.boolean().optional(),
@@ -26,7 +27,7 @@ const PartQuery = PageQuery.extend({
   siteId: z.uuid().optional(), // stock totals for this one site only
 });
 
-const select = { id: true, sku: true, name: true, category: true, unit: true, minQty: true, isActive: true, createdAt: true } as const;
+const select = { id: true, sku: true, name: true, category: true, modelIds: true, unit: true, minQty: true, isActive: true, createdAt: true } as const;
 const SKU_TAKEN = ['SKU_TAKEN', 'Another part already uses this SKU'] as const;
 
 // Catalog only. Stock in / out / adjust are ledger operations and come with the stock work (plan step 6).
@@ -99,6 +100,7 @@ export class PartsController {
   @Post()
   async create(@CurrentUser() me: AuthUser, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartBody, body);
+    await this.assertModels(data.modelIds);
     const part = await uniqueOr409(this.db.tenant(me).part.create({ data: { ...data, companyId: me.companyId! }, select }), ...SKU_TAKEN);
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'part.created', entityType: 'part', entityId: part.id, after: part, ip: req.ip });
     return part;
@@ -108,6 +110,7 @@ export class PartsController {
   @Patch(':id')
   async update(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartPatch, body);
+    await this.assertModels(data.modelIds);
     const db = this.db.tenant(me);
     const before = await db.part.findUnique({ where: { id: parse(uuid, id) }, select });
     if (!before) throw notFound('Part');
@@ -123,5 +126,11 @@ export class PartsController {
   private stockWhere(me: AuthUser, siteId?: string) {
     if (siteId) return { siteId: me.siteIds === null || me.siteIds.includes(siteId) ? siteId : { in: [] as string[] } };
     return me.siteIds === null ? {} : { siteId: { in: me.siteIds } };
+  }
+
+  private async assertModels(ids?: string[]) {
+    if (!ids?.length) return;
+    const found = await this.db.raw.minerModel.count({ where: { id: { in: ids } } });
+    if (found !== new Set(ids).size) throw notFound('Miner model');
   }
 }

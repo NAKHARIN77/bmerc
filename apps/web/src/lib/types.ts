@@ -15,6 +15,10 @@ export interface Me {
     status: "active" | "suspended" | "closed";
     subscription: { status: string; plan: { code: string; name: string } } | null;
   } | null;
+  /** The user's team and its site (technicians, head technicians). */
+  team: { name: string; site: string } | null;
+  /** Sites linked to the user (site managers, stock keepers). */
+  siteNames: string[];
 }
 
 export interface Page<T> {
@@ -92,10 +96,10 @@ export interface JobDetail extends Omit<JobRow, "tests" | "qrPrintLogs"> {
   unrepairableReason: string | null;
   qcPassedAt: string | null;
   dispatchedAt: string | null;
-  device: JobRow["device"] & { hashrateTh: string | number | null; qrCode: string | null };
+  device: JobRow["device"] & { hashrateTh: string | number | null; qrCode: string | null; minerModel: MinerModel | null };
   customer: { id: string; name: string; contactName: string | null; email: string | null; phone: string | null };
   events: Array<{ id: string; fromStatus: JobStatus | null; toStatus: JobStatus; actorId: string | null; by: string | null; note: string | null; createdAt: string }>;
-  can: { assign: boolean; work: boolean; dispatch: boolean; parts: boolean; bill: boolean };
+  can: { assign: boolean; work: boolean; dispatch: boolean; parts: boolean; requestParts: boolean; bill: boolean };
   invoice: { id: string; number: string; status: "unpaid" | "partial" | "paid" | "void"; currency: string; totalCents: number; paidCents: number } | null;
   tests: Array<{ id: string; testedOn: string; testedBy: string | null; workDone: string | null; results: Record<TestItem, TestValue>; passed: boolean; createdAt: string }>;
   qrPrintLogs: Array<{ id: string; by: string | null; copies: number; printedAt: string }>;
@@ -142,6 +146,8 @@ export interface PartRow {
   sku: string;
   name: string;
   category: string | null;
+  /** Miner models it fits; empty = any model. */
+  modelIds: string[];
   unit: string;
   minQty: number;
   isActive: boolean;
@@ -180,7 +186,7 @@ export interface StockRow {
   qty: number;
   level: StockLevel;
   site: { id: string; name: string };
-  part: { id: string; name: string; sku: string; unit: string; minQty: number };
+  part: { id: string; name: string; sku: string; unit: string; minQty: number; category: string | null; modelIds: string[] };
 }
 
 export interface StockPage extends Page<StockRow> {
@@ -275,4 +281,41 @@ export interface RepairInvoice {
     customer: { name: string; contactName: string | null; email: string | null; phone: string | null };
   };
   company: { name: string; legalName: string | null; taxId: string | null; billingAddress: string | null };
+}
+
+/** A miner model with its hashboards and chips (platform reference list). */
+export interface MinerModel {
+  id: string;
+  brand: string;
+  name: string;
+  hashboards: number;
+  chipModel: string | null;
+  chipsPerBoard: number | null;
+  /** Number from the list endpoints; the job detail sends the database decimal as a string. */
+  hashrateTh: number | string | null;
+  notes: string | null;
+  sourceUrl: string | null;
+  /** The platform owner checked the numbers. */
+  verified: boolean;
+  isActive: boolean;
+}
+
+/** A technician's request for parts, decided by the stock keeper or a lead. */
+export interface PartRequest {
+  id: string;
+  qty: number;
+  note: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  createdAt: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  part: { id: string; name: string; sku: string; unit: string };
+  job: { id: string; number: string; status: JobStatus; assigneeId: string | null; device: { model: string } };
+  site: { id: string; name: string };
+  requestedBy: string | null;
+  decidedBy: string | null;
+  /** Now in stock at the job's site. */
+  inStock: number;
+  canDecide: boolean;
+  canCancel: boolean;
 }

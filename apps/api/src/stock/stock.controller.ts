@@ -42,7 +42,7 @@ export class StockController {
         ...siteWhere,
         part: { isActive: true, ...(q.q ? { OR: [{ name: { contains: q.q, mode: 'insensitive' as const } }, { sku: { contains: q.q, mode: 'insensitive' as const } }] } : {}) },
       },
-      select: { qty: true, site: { select: { id: true, name: true } }, part: { select: { id: true, name: true, sku: true, unit: true, minQty: true } } },
+      select: { qty: true, site: { select: { id: true, name: true } }, part: { select: { id: true, name: true, sku: true, unit: true, minQty: true, category: true, modelIds: true } } },
       orderBy: [{ part: { name: 'asc' } }, { site: { name: 'asc' } }],
     });
     const all = rows.map((r) => ({ ...r, level: levelOf(r.qty, r.part.minQty) }));

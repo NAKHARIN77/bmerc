@@ -22,6 +22,7 @@ const ReceiveBody = z.object({
   siteId: z.uuid(),
   kind: z.enum(DeviceKind),
   model: text(120).min(2),
+  minerModelId: z.uuid().nullable().optional(), // picked from the miner model list; model is then its name
   serialNo: text(120).min(1),
   hashrateTh: z.number().min(0).max(100_000).nullable().optional(),
   reportedFault: text(2000).min(3),
@@ -73,6 +74,13 @@ export class JobActionsController {
 
     const { maxJobsPerMonth } = await limitsFor(this.db.raw, companyId);
     const company = await this.db.raw.company.findUniqueOrThrow({ where: { id: companyId }, select: { timezone: true } });
+    // A model picked from the list wins; a typed name that matches the list is linked too.
+    const listed = b.minerModelId
+      ? await this.db.raw.minerModel.findUnique({ where: { id: b.minerModelId }, select: { id: true, name: true } })
+      : await this.db.raw.minerModel.findFirst({ where: { name: { equals: b.model, mode: 'insensitive' } }, select: { id: true, name: true } });
+    if (b.minerModelId && !listed) throw notFound('Miner model');
+    const model = listed?.name ?? b.model;
+    const minerModelId = listed?.id ?? null;
     const year = Number(new Intl.DateTimeFormat('en', { timeZone: company.timezone, year: 'numeric' }).format(new Date()));
 
     const job = await this.db.tenantTx(me, async (tx) => {
@@ -99,10 +107,10 @@ export class JobActionsController {
       if (device) {
         const open = await tx.job.findFirst({ where: { deviceId: device.id, status: { not: 'dispatched' } }, select: { number: true } });
         if (open) throw conflict('DEVICE_IN_REPAIR', `This device is already in job ${open.number}`, { number: open.number });
-        await tx.device.update({ where: { id: device.id }, data: { customerId: b.customerId, model: b.model, ...(b.hashrateTh != null ? { hashrateTh: b.hashrateTh } : {}) } });
+        await tx.device.update({ where: { id: device.id }, data: { customerId: b.customerId, model, minerModelId, ...(b.hashrateTh != null ? { hashrateTh: b.hashrateTh } : {}) } });
       } else {
         device = await tx.device.create({
-          data: { companyId, customerId: b.customerId, kind: b.kind, model: b.model, serialNo: b.serialNo, hashrateTh: b.hashrateTh ?? null },
+          data: { companyId, customerId: b.customerId, kind: b.kind, model, minerModelId, serialNo: b.serialNo, hashrateTh: b.hashrateTh ?? null },
           select: { id: true },
         });
       }

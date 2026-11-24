@@ -6,7 +6,7 @@ import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { qs } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
-import type { JobRow, Page, PartRow, Site, StockPage } from "@/lib/types";
+import type { JobRow, MinerModel, Page, PartRow, Site, StockPage } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { ButtonLink, Field, FormCard, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
 
@@ -42,6 +42,13 @@ function MoveForm({ mode, parts, sites, partParam, siteParam }: { mode: Mode; pa
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const part = parts.find((p) => p.id === partId);
+  // Parts grouped by category (Chips, Boards, Power…), each showing the miner models it fits.
+  const models = useApi<MinerModel[]>("/miner-models");
+  const modelName = new Map((models.data ?? []).map((m) => [m.id, m.name]));
+  const fitsText = (p: PartRow) => (p.modelIds.length ? ` · fits ${p.modelIds.map((id) => modelName.get(id)).filter(Boolean).join(", ")}` : "");
+  const groups = Object.entries(
+    parts.reduce<Record<string, PartRow[]>>((a, p) => ((a[p.category || "Other"] ??= []).push(p), a), {}),
+  ).sort(([a], [b]) => (a === "Other" ? 1 : b === "Other" ? -1 : a.localeCompare(b)));
   const have = current.data?.items.find((r) => r.part.id === partId)?.qty ?? 0;
   const workable = (jobs.data?.items ?? []).filter((j) => j.status === "in_repair" || j.status === "waiting_parts" || j.status === "todo");
 
@@ -85,10 +92,14 @@ function MoveForm({ mode, parts, sites, partParam, siteParam }: { mode: Mode; pa
           <Field label="Part" error={fields.partId}>
             {(id) => (
               <Select id={id} value={partId} onChange={(e) => setPartId(e.target.value)}>
-                {parts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.sku})
-                  </option>
+                {groups.map(([cat, ps]) => (
+                  <optgroup key={cat} label={cat}>
+                    {ps.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.sku}){fitsText(p)}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
             )}

@@ -62,7 +62,7 @@ export function PartPage() {
         empty="No stock recorded at your sites yet"
         columns={[
           { header: "Site", cell: (s) => s.site.name },
-          { header: "Qty", cell: (s) => s.qty },
+          { header: "Qty", emphasis: true, cell: (s) => s.qty },
         ]}
       />
       <SectionTitle className="mt-6">Recent movements</SectionTitle>

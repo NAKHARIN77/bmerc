@@ -22,7 +22,7 @@ async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
   await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
-    job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
+    part_requests, job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
     jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
     companies, plans RESTART IDENTITY CASCADE`);
   await db.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
@@ -195,6 +195,12 @@ async function main() {
   await db.invoice.create({
     data: { companyId: C, number: 'INV-2026-0011', periodStart, periodEnd, amountCents: 29900, taxRateBps: 700, taxCents: 2093, status: 'paid', dueAt: daysAgo(-7), paidAt: daysAgo(3), paymentRef: 'PayPal demo' },
   });
+
+  // Miner models are platform reference data (migration 20261124120000), kept across reseeds: link to them.
+  await db.$executeRawUnsafe(`UPDATE devices d SET miner_model_id = m.id FROM miner_models m WHERE lower(trim(d.model)) = lower(m.name)`);
+  await db.$executeRawUnsafe(`UPDATE parts p SET model_ids = sub.ids FROM (
+    SELECT p2.id, array_agg(m.id) AS ids FROM parts p2 JOIN miner_models m ON m.chip_model IS NOT NULL AND p2.name ~* ('\\m' || m.chip_model || '\\M') GROUP BY p2.id
+  ) sub WHERE p.id = sub.id`);
 
   console.log(`Seeded. All demo accounts use password: ${process.env.SEED_PASSWORD ? '(the SEED_PASSWORD you set)' : DEMO_PASSWORD}`);
   console.log('  owner@bmerc.demo (platform owner) · admin@siamhash.demo (company admin) · manager@siamhash.demo (site manager, Chonburi)');

@@ -1,3 +1,4 @@
+import { forTenant } from '../prisma/tenant.js';
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -129,7 +130,15 @@ export class MeController {
           },
         })
       : null;
-    return { ...user, company };
+    // Names for the header and the welcome card: the user's team and the sites they work at.
+    let team: { name: string; site: { name: string } } | null = null;
+    let sites: string[] = [];
+    if (user.companyId) {
+      const db = forTenant(this.prisma, user.companyId);
+      team = user.teamId ? await db.team.findUnique({ where: { id: user.teamId }, select: { name: true, site: { select: { name: true } } } }) : null;
+      if (user.siteIds) sites = (await db.site.findMany({ where: { id: { in: user.siteIds } }, select: { name: true }, orderBy: { name: 'asc' } })).map((s) => s.name);
+    }
+    return { ...user, company, team: team ? { name: team.name, site: team.site.name } : null, siteNames: sites };
   }
 
   @AllowSuspended()

@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
-import type { PartDetail } from "@/lib/types";
+import type { MinerModel, PartDetail } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { ButtonLink, ErrorState, Field, FormCard, Input, Loading, PageHeader } from "@/components/ui";
 
@@ -22,16 +22,18 @@ function PartFormLoader({ mode }: { mode: "new" | "edit" }) {
   const allowed = can("company_admin", "stock_keeper");
   const existing = useApi<PartDetail>(mode === "edit" && allowed ? `/parts/${id}` : null);
   const categories = useApi<string[]>(allowed ? "/parts/categories" : null);
+  const models = useApi<MinerModel[]>(allowed ? "/miner-models" : null);
   if (!allowed) return <NoAccess />;
   if (mode === "edit") {
     if (existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
     if (!existing.data) return <Loading />;
   }
   // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
-  return <PartForm key={existing.data ? JSON.stringify(existing.data) : "new"} part={existing.data ?? null} categories={categories.data ?? []} />;
+  if (!models.data) return <Loading />;
+  return <PartForm key={existing.data ? JSON.stringify(existing.data) : "new"} part={existing.data ?? null} categories={categories.data ?? []} models={models.data} />;
 }
 
-function PartForm({ part, categories }: { part: PartDetail | null; categories: string[] }) {
+function PartForm({ part, categories, models }: { part: PartDetail | null; categories: string[]; models: MinerModel[] }) {
   const router = useRouter();
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,7 @@ function PartForm({ part, categories }: { part: PartDetail | null; categories: s
       sku: String(f.get("sku") ?? "").trim(),
       name: String(f.get("name") ?? "").trim(),
       category: String(f.get("category") ?? "").trim() || null,
+      modelIds: f.getAll("modelIds").map(String),
       unit: String(f.get("unit") ?? "").trim() || "pcs",
       minQty: minRaw === "" ? 0 : Number(minRaw),
       isActive: f.get("isActive") === "on",
@@ -110,6 +113,21 @@ function PartForm({ part, categories }: { part: PartDetail | null; categories: s
             {(id) => <Input id={id} name="minQty" type="number" min={0} step={1} inputMode="numeric" defaultValue={part?.minQty ?? 0} />}
           </Field>
         </div>
+        <fieldset className="mb-4">
+          <legend className="mb-1.5 text-xs font-medium text-muted">Fits these miner models (leave all unticked if it fits any model, like fans or thermal paste)</legend>
+          <div className="grid gap-x-4 gap-y-1.5 rounded-lg bg-[#f6f8ff] p-3 sm:grid-cols-2 lg:grid-cols-3">
+            {models.map((m) => (
+              <label key={m.id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="modelIds" value={m.id} defaultChecked={part?.modelIds.includes(m.id) ?? false} />
+                <span>
+                  {m.name}
+                  {m.chipModel && <span className="text-muted"> · {m.chipModel}</span>}
+                </span>
+              </label>
+            ))}
+            {models.length === 0 && <span className="text-sm text-muted">No miner models yet.</span>}
+          </div>
+        </fieldset>
         <label className="mb-4 flex items-center gap-2 text-sm">
           <input type="checkbox" name="isActive" defaultChecked={part?.isActive ?? true} />
           In use (untick to retire a part you no longer stock)

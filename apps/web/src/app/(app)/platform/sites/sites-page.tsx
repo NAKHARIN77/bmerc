@@ -60,7 +60,7 @@ function Sites() {
           { header: "Status", cell: (s) => <SiteStatusChip status={s.status} /> },
           { header: "Teams", cell: (s) => s.teams },
           { header: "Technicians", cell: (s) => s.technicians },
-          { header: "Open jobs", cell: (s) => s.openJobs },
+          { header: "Open jobs", emphasis: true, cell: (s) => s.openJobs },
         ]}
       />
     </>

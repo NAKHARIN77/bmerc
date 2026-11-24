@@ -17,13 +17,59 @@ const VARIANT: Record<Variant, string> = {
   ghost: "text-info hover:underline px-0",
 };
 
+// Every button carries an icon picked from its label, so the same action looks the same on every page.
+// First match wins; pass icon={false} to opt out, or icon="name" to choose.
+const ICON_RULES: Array<[RegExp, IconName]> = [
+  [/^\+/, "plus"],
+  [/^(back|previous)/i, "arrowLeft"],
+  [/print/i, "printer"],
+  [/export|download/i, "download"],
+  [/^(search|look up)/i, "search"],
+  [/^(delete|remove)/i, "trash"],
+  [/^(cancel|reject|not received|deactivate|void)/i, "close"],
+  [/^suspend/i, "pause"],
+  [/^activate/i, "play"],
+  [/^(edit|update status|limits|change)/i, "pencil"],
+  [/password|log in again/i, "lock"],
+  [/(pay|upgrade|choose|renew|checkout|available soon|payment details)/i, "dollar"],
+  [/^(save|confirm|paid|issue|mark as|i have sent|use part|parts arrived|close job|finish)/i, "check"],
+  [/^send/i, "send"],
+  [/^invite/i, "mail"],
+  [/(scan|qr)/i, "qr"],
+  [/^(receive|create|new)/i, "plus"],
+  [/(dispatch|return to customer)/i, "truck"],
+  [/(record test|test)/i, "clipboard"],
+  [/^(start repair|request parts)/i, "wrench"],
+  [/^parts catalog/i, "list"],
+  [/^miner models/i, "box"],
+  [/^transfers/i, "truck"],
+  [/^adjust/i, "pencil"],
+  [/stock/i, "box"],
+  [/^try again/i, "refresh"],
+  [/^(view|open|customer detail|technicians|bench board|technician job cards|all payments|pending payments)/i, "eye"],
+  [/^(next|continue|skip|log in|go)/i, "arrowRight"],
+];
+function withIcon(children: ReactNode, icon: IconName | false | undefined) {
+  if (icon === false || typeof children !== "string") return children;
+  const name = icon ?? ICON_RULES.find(([re]) => re.test(children.trim()))?.[1];
+  if (!name) return children;
+  const text = name === "plus" ? children.replace(/^\+\s*/, "") : children;
+  return (
+    <>
+      <Icon name={name} size={16} strokeWidth={2} className="shrink-0" />
+      {text}
+    </>
+  );
+}
+
 export function Button({
   variant = "primary",
   busy,
   className,
   children,
+  icon,
   ...rest
-}: { variant?: Variant; busy?: boolean } & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: { variant?: Variant; busy?: boolean; icon?: IconName | false } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cx(
@@ -34,7 +80,7 @@ export function Button({
       disabled={busy || rest.disabled}
       {...rest}
     >
-      {busy ? "Working…" : children}
+      {busy ? "Working…" : withIcon(children, icon)}
     </button>
   );
 }
@@ -144,22 +190,86 @@ export interface Column<T> {
   header: string;
   cell: (row: T) => ReactNode;
   className?: string;
+  /** In the list view, show this value large on the right (a quantity or amount). */
+  emphasis?: boolean;
 }
 
-export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick }: {
+// Table-only classes (alignment, nowrap, column widths) would squeeze or overflow a list row.
+const clean = (c?: string) => c?.replace(/(^|\s)(text-right|whitespace-nowrap|min-w-\S+|max-w-\S+|w-\S+)(?=\s|$)/g, " ");
+
+/**
+ * A list of records. By default it is one white panel with a row per record, like a phone app list:
+ * the first column is the title, the other columns are a short "Label value" line under it, "Status" and
+ * any emphasis column sit on the right, untitled columns (actions) at the end, and a chevron when the row opens.
+ * variant="table" keeps a classic table, for printed documents such as invoice lines.
+ */
+export function Table<T>({ columns, rows, rowKey, empty = "Nothing here yet", onRowClick, variant = "list" }: {
   columns: Array<Column<T>>;
   rows: T[];
   rowKey: (row: T) => string;
   empty?: string;
   onRowClick?: (row: T) => void;
+  variant?: "list" | "table";
 }) {
+  if (variant === "list") {
+    const [title, ...rest] = columns;
+    const status = rest.find((c) => c.header === "Status");
+    const big = rest.filter((c) => c.emphasis);
+    const actions = rest.filter((c) => !c.header);
+    const fields = rest.filter((c) => c !== status && c.header && !c.emphasis);
+    return (
+      <div className="overflow-hidden rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+        {rows.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted">{empty}</div>
+        ) : (
+          <ul className="divide-y divide-soft">
+            {rows.map((r) => (
+              <li
+                key={rowKey(r)}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                className={cx("flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 sm:flex-nowrap", onRowClick && "cursor-pointer transition-colors hover:bg-[#f5f8ff]")}
+              >
+                <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+                  <div className={cx("break-words text-[15px] font-semibold text-ink", clean(title.className))}>{title.cell(r)}</div>
+                  {fields.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[13px]">
+                      {fields.map((c) => (
+                        <span key={c.header} className="min-w-0">
+                          <span className="text-muted">{c.header}</span> <span className={cx("text-ink", clean(c.className))}>{c.cell(r)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {big.map((c) => (
+                  <div key={c.header} className="shrink-0 text-right">
+                    <div className="text-lg font-bold leading-tight text-navy">{c.cell(r)}</div>
+                    <div className="text-[11px] text-muted">{c.header}</div>
+                  </div>
+                ))}
+                {status && <div className="shrink-0">{status.cell(r)}</div>}
+                {actions.length > 0 && (
+                  <div className="flex shrink-0 flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                    {actions.map((c, i) => (
+                      <div key={i}>{c.cell(r)}</div>
+                    ))}
+                  </div>
+                )}
+                {onRowClick && <span aria-hidden className="shrink-0 text-xl leading-none text-[#9aa7c2]">›</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
   return (
-    <div className="overflow-x-auto rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,.05)]">
+    <div className="overflow-x-auto rounded-xl border border-soft bg-white">
       <table className="w-full border-collapse text-left">
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c.header} className={cx("bg-navy px-4 py-3.5 text-xs font-semibold uppercase text-white", c.className)}>
+              <th key={c.header} className={cx("border-b border-soft bg-[#f6f8fd] px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted", c.className)}>
                 {c.header}
               </th>
             ))}
@@ -237,13 +347,13 @@ export function Pager({ page, limit, total, onPage }: { page: number; limit: num
 // ───── Prototype page pieces ─────
 
 /** A link that looks like a button (Back to …, + Add …). */
-export function ButtonLink({ href, variant = "primary", className, children }: { href: string; variant?: Variant; className?: string; children: ReactNode }) {
+export function ButtonLink({ href, variant = "primary", className, children, icon }: { href: string; variant?: Variant; className?: string; children: ReactNode; icon?: IconName | false }) {
   return (
     <Link
       href={href}
       className={cx("inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-semibold shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-colors", VARIANT[variant], className)}
     >
-      {children}
+      {withIcon(children, icon)}
     </Link>
   );
 }
