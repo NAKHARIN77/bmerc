@@ -12,6 +12,7 @@ import type { AuthUser } from '../auth/auth-user.js';
 import type { JobStatus } from '../generated/prisma/enums.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { monthStartUtc, periods } from '../common/periods.js';
+import { settleInvoice } from '../billing/settle.js';
 
 // Platform owner console (prototype owner screens). The owner runs the service: companies, plans, billing and sites.
 // No access to a company's parts, stock, customers or repair work (decided 2026-11-24); job numbers come from
@@ -357,32 +358,16 @@ export class PlatformController {
   @Post('invoices/:id/mark-paid')
   async markPaid(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const { paymentRef } = parse(MarkPaidBody, body);
-    const inv = await this.db.raw.invoice.findUnique({
-      where: { id: parse(uuid, id) },
-      select: { id: true, status: true, companyId: true, planId: true, periodStart: true, periodEnd: true, company: { select: { status: true } } },
-    });
+    const inv = await this.db.raw.invoice.findUnique({ where: { id: parse(uuid, id) }, select: { id: true, status: true } });
     if (!inv) throw notFound('Invoice');
     if (inv.status !== 'open') throw conflict('INVOICE_NOT_OPEN', 'Only an open invoice can be marked as paid');
-    const now = new Date();
-    // Nothing else overdue: a suspended company is activated again by the payment.
-    const stillOverdue = await this.db.raw.invoice.count({ where: { companyId: inv.companyId, status: 'open', dueAt: { lt: now }, id: { not: inv.id } } });
-    const reactivate = inv.company.status === 'suspended' && stillOverdue === 0;
-    // Credit weights are fixed when a plan is bought: a new plan brings its weights, a renewal keeps the old ones.
-    const sub = await this.db.raw.subscription.findUnique({ where: { companyId: inv.companyId }, select: { planId: true } });
-    const newPlan = inv.planId && sub?.planId !== inv.planId ? await this.db.raw.plan.findUnique({ where: { id: inv.planId }, select: { creditWeights: true } }) : null;
-    await this.db.raw.$transaction([
-      this.db.raw.invoice.update({ where: { id: inv.id }, data: { status: 'paid', paidAt: now, paymentRef, confirmedById: me.id } }),
-      // An invoice for a plan moves the company to that plan for the paid period (checkout = plan change or renewal).
-      ...(inv.planId
-        ? [this.db.raw.subscription.update({ where: { companyId: inv.companyId }, data: { planId: inv.planId, status: 'active', currentPeriodStart: inv.periodStart, currentPeriodEnd: inv.periodEnd, ...(newPlan ? { creditWeights: newPlan.creditWeights ?? undefined } : {}) } })]
-        : []),
-      ...(reactivate ? [this.db.raw.company.update({ where: { id: inv.companyId }, data: { status: 'active' } })] : []),
-    ]);
+    const done = await settleInvoice(this.db.raw, inv.id, { paymentRef, confirmedById: me.id });
+    if (!done) throw conflict('INVOICE_NOT_OPEN', 'Only an open invoice can be marked as paid');
     await this.audit.log({
-      companyId: inv.companyId, actorUserId: me.id, action: 'platform.invoice_paid', entityType: 'invoice', entityId: inv.id,
-      before: { status: 'open' }, after: { status: 'paid', paymentRef, planId: inv.planId, reactivated: reactivate }, ip: req.ip,
+      companyId: done.companyId, actorUserId: me.id, action: 'platform.invoice_paid', entityType: 'invoice', entityId: inv.id,
+      before: { status: 'open' }, after: { status: 'paid', paymentRef, planId: done.planId, reactivated: done.reactivated }, ip: req.ip,
     });
-    return { ok: true, reactivated: reactivate };
+    return { ok: true, reactivated: done.reactivated };
   }
 
   /** Pending payments → Reject: the uploaded slip does not match, so it is cleared and the invoice stays open. */
