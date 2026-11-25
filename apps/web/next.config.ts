@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 // The browser only talks to this origin. /api/v1 is forwarded to the NestJS API, so the API's
 // httpOnly cookies are first-party here. Set API_ORIGIN at build time for other environments.
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:4000";
+// On Vercel the API runs elsewhere (Railway): without API_ORIGIN every sign-in would go to localhost.
+if (process.env.VERCEL && !process.env.API_ORIGIN) throw new Error("Set API_ORIGIN (the API's public URL, e.g. https://bmerc-api.up.railway.app) in the Vercel project");
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
