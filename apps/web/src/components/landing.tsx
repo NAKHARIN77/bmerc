@@ -117,8 +117,12 @@ export function Landing() {
             <span>Address: [Company address]</span>
           </FootCol>
           <FootCol title="Legal">
-            <span>Privacy policy</span>
-            <span>Terms of service</span>
+            <Link href="/privacy" className="hover:text-white">
+              Privacy policy
+            </Link>
+            <Link href="/terms" className="hover:text-white">
+              Terms of service
+            </Link>
           </FootCol>
         </div>
         <p className="mt-8 border-t border-[#1d3b5f] pt-4 text-[13px]">© 2026 BMERC.</p>

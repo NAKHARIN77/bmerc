@@ -49,3 +49,16 @@ export function pg(tool, args, { input, stdoutTo } = {}) {
 }
 
 export const stamp = (d = new Date()) => d.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+
+/**
+ * Every table with row-level security has it FORCEd, so the policies also bind the table owner.
+ * Run after any restore (and at app start) so a dump taken without FORCE cannot leave it off.
+ */
+export const REFORCE_RLS_SQL = `DO $$ DECLARE t text; BEGIN
+  FOR t IN SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' AND relrowsecurity LOOP
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+  END LOOP;
+END $$`;
+
+/** Run SQL with psql and return the trimmed text output (tuples only). */
+export const psql = async (url, sql) => (await pg('psql', ['-At', '-v', 'ON_ERROR_STOP=1', `--dbname=${url}`, '-c', sql])).toString().trim();

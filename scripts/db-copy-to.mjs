@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { createReadStream, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, loadEnv, pg } from './db-lib.mjs';
+import { REFORCE_RLS_SQL, ROOT, loadEnv, pg, psql } from './db-lib.mjs';
 
 loadEnv();
 const raw = process.env.TARGET_DATABASE_URL ?? process.env.RENDER_DATABASE_URL;
@@ -41,6 +41,9 @@ await pg('psql', ['-q', '-v', 'ON_ERROR_STOP=1', `--dbname=${target}`, '-c', `DO
     REVOKE ALL ON "_prisma_migrations" FROM bmerc_app;
   END IF;
 END $$`]);
+
+// A dump taken from a hosted database records RLS as not forced; force it again.
+await psql(target, REFORCE_RLS_SQL);
 
 const counts = (await pg('psql', ['-At', `--dbname=${target}`, '-c', 'select count(*) from companies'])).toString().trim();
 console.log(`Copy OK: ${counts} companies on the target. Sign in to check.`);

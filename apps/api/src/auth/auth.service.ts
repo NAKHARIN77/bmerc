@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { LEGAL_VERSION } from '../common/legal.js';
 import { MailService, webLink } from '../mail/mail.service.js';
 import { ApiError, conflict } from '../common/http.js';
 import { RateLimiter } from '../common/rate-limit.js';
@@ -68,7 +69,8 @@ export class AuthService {
         data: { companyId: company.id, email, passwordHash, fullName: input.fullName, role: 'company_admin' },
       });
     });
-    await this.audit.log({ companyId: user.companyId, actorUserId: user.id, action: 'company.registered', ip });
+    // Proof of consent (PDPA): which version of the terms and privacy policy this person agreed to, and when.
+    await this.audit.log({ companyId: user.companyId, actorUserId: user.id, action: 'company.registered', after: { acceptedTerms: LEGAL_VERSION }, ip });
     return this.issue(user.id);
   }
 

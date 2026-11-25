@@ -34,7 +34,9 @@ describe('Auth (e2e)', () => {
     const body = { companyName: 'Signup Test Co', fullName: 'New Admin', email, password: 'Signup-1234' };
     const noCountry = await http().post('/api/v1/auth/register').send(body).expect(400);
     expect(noCountry.body.details.map((d: { path: string[] }) => d.path[0])).toContain('country');
-    const r = await http().post('/api/v1/auth/register').send({ ...body, country: 'VN' }).expect(201);
+    const noTerms = await http().post('/api/v1/auth/register').send({ ...body, country: 'VN' }).expect(400);
+    expect(noTerms.body.details.map((d: { path: string[] }) => d.path[0])).toContain('acceptTerms');
+    const r = await http().post('/api/v1/auth/register').send({ ...body, country: 'VN', acceptTerms: true }).expect(201);
     const me = await http().get('/api/v1/me').set('Authorization', `Bearer ${r.body.accessToken}`).expect(200);
     expect(me.body).toMatchObject({ role: 'company_admin', company: { name: 'Signup Test Co', status: 'active', subscription: { status: 'active', plan: { code: 'basic' } } } });
 

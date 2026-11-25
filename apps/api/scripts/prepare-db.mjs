@@ -14,6 +14,11 @@ const client = new pg.Client({ connectionString: ownerUrl });
 await client.connect();
 let url = ownerUrl;
 try {
+  // Safety net: RLS stays FORCEd on every table that has it, even after restoring a backup taken without FORCE.
+  await client.query(`DO $$ DECLARE t text; BEGIN
+    FOR t IN SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' AND relrowsecurity LOOP
+      EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+    END LOOP; END $$`);
   const { rows } = await client.query('SELECT rolsuper, rolcreaterole FROM pg_roles WHERE rolname = current_user');
   const canManageRoles = rows[0]?.rolsuper || rows[0]?.rolcreaterole;
   if (!password) {
