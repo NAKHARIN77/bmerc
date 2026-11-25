@@ -2,11 +2,18 @@
 // connects as the database owner, then prints the connection URL the API should use.
 //
 // Hosted databases differ: if the owner may not create or alter roles, the API falls back to the owner URL.
-// That is still safe for company data, because every table with row-level security has it FORCEd,
-// which applies the policies to the owner as well. A warning is logged so this is visible.
+// That is safe only when the owner is bound by row-level security (every RLS table is FORCEd). An owner that
+// bypasses RLS (superuser or BYPASSRLS, e.g. Supabase's "postgres") must never serve the API, so then this stops.
 import pg from 'pg';
 
-const ownerUrl = process.env.MIGRATE_DATABASE_URL;
+// node-postgres reads sslmode=require as "verify the certificate", which hosted poolers (Supabase) fail with
+// their own CA. Prisma's migrate engine needs "require"; node-postgres gets "no-verify": still encrypted.
+const forPg = (raw) => {
+  const u = new URL(raw);
+  if (['require', 'prefer'].includes(u.searchParams.get('sslmode') ?? '')) u.searchParams.set('sslmode', 'no-verify');
+  return u.toString();
+};
+const ownerUrl = forPg(process.env.MIGRATE_DATABASE_URL);
 const password = process.env.APP_DB_PASSWORD;
 const log = (m) => process.stderr.write(`[prepare-db] ${m}\n`);
 
@@ -19,12 +26,32 @@ try {
     FOR t IN SELECT relname FROM pg_class WHERE relnamespace = 'public'::regnamespace AND relkind = 'r' AND relrowsecurity LOOP
       EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
     END LOOP; END $$`);
-  const { rows } = await client.query('SELECT rolsuper, rolcreaterole FROM pg_roles WHERE rolname = current_user');
+  // Supabase exposes the public schema through its Data API to the anon and authenticated roles, and grants
+  // them every new table by default. BMERC never uses that API, so take those grants away.
+  await client.query(`DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+      REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+      REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon, authenticated;
+    END IF;
+  END $$`);
+  const { rows } = await client.query('SELECT rolsuper, rolcreaterole, rolbypassrls FROM pg_roles WHERE rolname = current_user');
   const canManageRoles = rows[0]?.rolsuper || rows[0]?.rolcreaterole;
+  const ownerBypassesRls = rows[0]?.rolsuper || rows[0]?.rolbypassrls;
+  const fallback = (why) => {
+    if (ownerBypassesRls) {
+      log(`${why}; the owner login bypasses row-level security, so the API will not use it. Fix the database login and redeploy.`);
+      process.exit(1);
+    }
+    log(`${why}; the API uses the owner connection (RLS is forced on company tables)`);
+  };
   if (!password) {
-    log('APP_DB_PASSWORD is not set; the API uses the owner connection');
+    fallback('APP_DB_PASSWORD is not set');
   } else if (!canManageRoles) {
-    log('this database user may not create roles; the API uses the owner connection (RLS is forced on company tables)');
+    fallback('this database user may not create roles');
   } else {
     try {
       const pw = client.escapeLiteral(password);
@@ -45,7 +72,9 @@ try {
       `);
       await client.query('COMMIT');
       const u = new URL(ownerUrl);
-      u.username = 'bmerc_app';
+      // Poolers such as Supabase's name logins "user.projectref"; keep the owner's suffix.
+      const dot = u.username.indexOf('.');
+      u.username = dot > 0 ? `bmerc_app${u.username.slice(dot)}` : 'bmerc_app';
       u.password = encodeURIComponent(password);
       // Prove the login works before handing it to the API.
       const probe = new pg.Client({ connectionString: u.toString() });
@@ -56,7 +85,7 @@ try {
       log('API connects as bmerc_app');
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
-      log(`could not set up bmerc_app (${e.message}); the API uses the owner connection (RLS is forced on company tables)`);
+      fallback(`could not set up bmerc_app (${e.message})`);
     }
   }
 } finally {

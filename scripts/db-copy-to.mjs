@@ -21,15 +21,24 @@ if (!process.argv.includes('--yes')) {
   process.exit(1);
 }
 
-// 1. Fresh backup of this machine's data.
-const b = spawnSync(process.execPath, [join(ROOT, 'scripts/db-backup.mjs')], { stdio: 'inherit' });
-if (b.status !== 0) process.exit(1);
-const dir = process.env.BACKUP_DIR ?? join(ROOT, 'backups');
-const file = join(dir, readdirSync(dir).filter((n) => /^bmerc-\d{8}-\d{4}\.dump$/.test(n)).sort().at(-1));
+// 1. The data to copy: --from <backup file>, or a fresh backup of this machine's data.
+const fromIdx = process.argv.indexOf('--from');
+let file;
+if (fromIdx > 0) {
+  file = process.argv[fromIdx + 1];
+} else {
+  const b = spawnSync(process.execPath, [join(ROOT, 'scripts/db-backup.mjs')], { stdio: 'inherit' });
+  if (b.status !== 0) process.exit(1);
+  const dir = process.env.BACKUP_DIR ?? join(ROOT, 'backups');
+  file = join(dir, readdirSync(dir).filter((n) => /^bmerc-\d{8}-\d{4}\.dump$/.test(n)).sort().at(-1));
+}
 
 // 2. Replace the target's schema and data. Objects become owned by the target user.
 console.log(`Copying ${file} to ${target.hostname} …`);
-await pg('pg_restore', ['--clean', '--if-exists', '--no-owner', '--no-privileges', '--exit-on-error', `--dbname=${target}`], { input: createReadStream(file) });
+// --clean only when there is something to replace: on an empty database it fails dropping policies of missing tables.
+const existing = Number(await psql(target, `SELECT count(*) FROM pg_tables WHERE schemaname = 'public'`));
+const clean = existing > 0 ? ['--clean', '--if-exists'] : [];
+await pg('pg_restore', [...clean, '--no-owner', '--no-privileges', '--exit-on-error', `--dbname=${target}`], { input: createReadStream(file) });
 
 // 3. The restore drops the app role's table grants; give them back (no-op if the role does not exist).
 await pg('psql', ['-q', '-v', 'ON_ERROR_STOP=1', `--dbname=${target}`, '-c', `DO $$ BEGIN
@@ -44,6 +53,14 @@ END $$`]);
 
 // A dump taken from a hosted database records RLS as not forced; force it again.
 await psql(target, REFORCE_RLS_SQL);
+// Supabase: its Data API roles get every new table by default; BMERC does not use that API.
+await psql(target, `DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+    REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;
+  END IF;
+END $$`);
 
 const counts = (await pg('psql', ['-At', `--dbname=${target}`, '-c', 'select count(*) from companies'])).toString().trim();
 console.log(`Copy OK: ${counts} companies on the target. Sign in to check.`);

@@ -14,6 +14,13 @@
 | `BACKUP_DIR` | `backups/` | โฟลเดอร์ที่เก็บไฟล์ (โฟลเดอร์นี้ไม่ขึ้น git) |
 | `BACKUP_KEEP_DAYS` | `14` | เก็บย้อนหลังกี่วัน |
 | `PG_CONTAINER` | ไม่ตั้ง | ถ้าเครื่องไม่มี `pg_dump` ให้ใส่ชื่อ container ของฐานข้อมูล เช่น `bmerc-db-1` |
+| `PG_IMAGE` | ไม่ตั้ง | ใช้เครื่องมือจาก Docker image แทน เช่น `postgres:17-alpine` จำเป็นกับ Supabase (PostgreSQL 17) เพราะ `pg_dump` เวอร์ชันเก่ากว่าเซิร์ฟเวอร์ใช้ไม่ได้ |
+
+สำรองฐานข้อมูลเว็บจริง (Supabase) จากเครื่องนี้:
+```
+set -a; . apps/api/.env; set +a
+BACKUP_DATABASE_URL="$SUPABASE_DATABASE_URL?sslmode=require" PG_IMAGE=postgres:17-alpine npm run -s db:backup
+```
 
 **ตั้งให้รันเองทุกวัน**
 

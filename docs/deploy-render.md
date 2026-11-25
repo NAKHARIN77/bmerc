@@ -1,6 +1,11 @@
 # เอา BMERC ขึ้นเว็บจริงบน Render
 
-สิ่งที่จะได้: เว็บ 1 ตัว (หน้าเว็บกับ API อยู่ในเครื่องเดียวกัน) และฐานข้อมูล PostgreSQL 1 ตัว ที่ Singapore ซึ่งใกล้ไทยที่สุด
+สิ่งที่จะได้: เว็บ 1 ตัวบน Render (หน้าเว็บกับ API อยู่ในเครื่องเดียวกัน) ที่ Singapore ซึ่งใกล้ไทยที่สุด
+ฐานข้อมูล PostgreSQL อยู่ที่ **Supabase** (project `bmerc`, Singapore) ตั้งแต่ 25 พ.ย. 2026 เพราะฐานข้อมูลฟรีของ Render หมดอายุใน 30 วัน
+
+**ตั้งค่าฐานข้อมูล:** Render → bmerc → Environment → `MIGRATE_DATABASE_URL` = connection string แบบ **Session pooler** ของ Supabase แล้วต่อท้ายด้วย `?sslmode=require`
+ตอนเริ่มทำงาน ระบบสร้างผู้ใช้ `bmerc_app` (ชื่อบน pooler คือ `bmerc_app.<project ref>`) ให้ API ใช้เอง และปิดสิทธิ์ของ `anon`/`authenticated` (Data API ของ Supabase)
+ผู้ใช้ `postgres` ของ Supabase ข้าม RLS ได้ จึงต้องไม่ให้ API ใช้เด็ดขาด ถ้าสร้าง `bmerc_app` ไม่ได้ เว็บจะไม่ยอมเริ่มทำงาน
 ที่อยู่เว็บจะเป็นแบบ `https://bmerc-xxxx.onrender.com` มี https ให้ฟรี
 
 ## ข้อจำกัดของแผนฟรี (สำคัญ)

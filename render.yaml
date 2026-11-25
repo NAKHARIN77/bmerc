@@ -1,4 +1,4 @@
-# Render Blueprint: one web service (site + API in one container) and one PostgreSQL database, in Singapore.
+# Render Blueprint: one web service (site + API in one container) in Singapore. The database is on Supabase.
 # In Render: New → Blueprint → pick this repository. See docs/deploy-render.md.
 services:
   - type: web
@@ -9,10 +9,10 @@ services:
     branch: main
     healthCheckPath: /api/v1/health
     envVars:
+      # The database owner login (Supabase session pooler, ending in ?sslmode=require). Set it in the
+      # Render dashboard: Render's own free database expires after 30 days, so it is no longer used.
       - key: MIGRATE_DATABASE_URL
-        fromDatabase:
-          name: bmerc-db
-          property: connectionString
+        sync: false
       - key: APP_DB_PASSWORD
         generateValue: true
       - key: JWT_ACCESS_SECRET
@@ -22,10 +22,3 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
-
-databases:
-  - name: bmerc-db
-    plan: free
-    region: singapore
-    databaseName: bmerc
-    postgresMajorVersion: "16"

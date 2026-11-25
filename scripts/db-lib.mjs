@@ -32,8 +32,15 @@ export function backupUrl() {
 
 /** Run a Postgres tool, locally or with `docker exec` in PG_CONTAINER. Resolves with stdout as a Buffer. */
 export function pg(tool, args, { input, stdoutTo } = {}) {
+  // PG_IMAGE (e.g. postgres:17-alpine) runs the tool in a throw-away container of that image: use it when the
+  // server is newer than the local tools (pg_dump refuses to dump a newer server).
   const container = process.env.PG_CONTAINER;
-  const [cmd, argv] = container ? ['docker', ['exec', '-i', container, tool, ...args]] : [tool, args];
+  const image = process.env.PG_IMAGE;
+  const [cmd, argv] = image
+    ? ['docker', ['run', '--rm', '-i', '--add-host=host.docker.internal:host-gateway', image, tool, ...args]]
+    : container
+      ? ['docker', ['exec', '-i', container, tool, ...args]]
+      : [tool, args];
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, argv, { stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
@@ -41,7 +48,7 @@ export function pg(tool, args, { input, stdoutTo } = {}) {
     if (stdoutTo) child.stdout.pipe(stdoutTo);
     else child.stdout.on('data', (d) => out.push(d));
     child.stderr.on('data', (d) => (err += d));
-    child.on('error', (e) => reject(new Error(`${cmd}: ${e.message}${container ? '' : ' (install the PostgreSQL client tools, or set PG_CONTAINER)'}`)));
+    child.on('error', (e) => reject(new Error(`${cmd}: ${e.message}${container ? '' : ' (install the PostgreSQL client tools, or set PG_CONTAINER or PG_IMAGE)'}`)));
     child.on('close', (code) => (code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(`${tool} failed (${code}): ${err.trim()}`))));
     if (input) input.pipe(child.stdin);
     else child.stdin.end();
