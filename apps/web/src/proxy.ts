@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Optimistic check only: the API decides who may see what. This just avoids
 // rendering the signed-in area for visitors who clearly have no session.
-const PUBLIC = ["/login", "/register", "/forgot-password", "/reset-password", "/accept-invite"];
+const PUBLIC = ["/login", "/register", "/forgot-password", "/reset-password", "/accept-invite", "/privacy", "/terms"];
 const SESSION_HINT = "bmerc_session";
 
 export function proxy(req: NextRequest) {

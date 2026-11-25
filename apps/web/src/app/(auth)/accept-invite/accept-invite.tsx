@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -53,6 +54,13 @@ export function AcceptInvite() {
           router.replace("/dashboard");
         }}
       />
+      <p className="mt-3 text-center text-xs text-muted">
+        Your name, email and the work you record are kept by your company in BMERC. See the{" "}
+        <Link href="/privacy" target="_blank" className="font-semibold text-info hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </div>
   );
 }

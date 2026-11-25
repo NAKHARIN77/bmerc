@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -61,6 +62,22 @@ export function RegisterForm() {
         {(id) => <Input id={id} name="password" type="password" autoComplete="new-password" minLength={MIN_PASSWORD} required />}
       </Field>
       <p className="mb-3 text-xs text-muted">Your company starts on the Basic plan. You can upgrade later from Company settings.</p>
+      <label htmlFor="acceptTerms" className="mb-1 flex items-start gap-2.5 text-sm text-ink">
+        <input id="acceptTerms" name="acceptTerms" type="checkbox" required className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+        <span>
+          I agree to the{" "}
+          <Link href="/terms" target="_blank" className="font-semibold text-info hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" target="_blank" className="font-semibold text-info hover:underline">
+            Privacy Policy
+          </Link>
+          , for my company
+        </span>
+      </label>
+      {fields.acceptTerms && <p className="mb-2 text-xs text-danger">{fields.acceptTerms}</p>}
+      <div className="mb-3" />
       <Button type="submit" busy={busy} className="w-full">
         Create account
       </Button>

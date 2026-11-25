@@ -22,6 +22,8 @@ const RegisterBody = z.object({
   fullName: z.string().trim().min(2).max(200),
   email: z.email(),
   password,
+  // The form's tick box; the browser sends "on" when ticked.
+  acceptTerms: z.union([z.literal(true), z.literal('on'), z.literal('true')], { error: 'Tick the box to agree to the Terms of Service and Privacy Policy' }),
 });
 const LoginBody = z.object({ email: z.email(), password: z.string().min(1) });
 const ChangePasswordBody = z.object({ currentPassword: z.string().min(1), newPassword: password });

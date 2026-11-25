@@ -1,6 +1,11 @@
 # เอา BMERC ขึ้นเว็บจริงบน Render
 
-สิ่งที่จะได้: เว็บ 1 ตัว (หน้าเว็บกับ API อยู่ในเครื่องเดียวกัน) และฐานข้อมูล PostgreSQL 1 ตัว ที่ Singapore ซึ่งใกล้ไทยที่สุด
+สิ่งที่จะได้: เว็บ 1 ตัวบน Render (หน้าเว็บกับ API อยู่ในเครื่องเดียวกัน) ที่ Singapore ซึ่งใกล้ไทยที่สุด
+ฐานข้อมูล PostgreSQL อยู่ที่ **Supabase** (project `bmerc`, Singapore) ตั้งแต่ 25 พ.ย. 2026 เพราะฐานข้อมูลฟรีของ Render หมดอายุใน 30 วัน
+
+**ตั้งค่าฐานข้อมูล:** Render → bmerc → Environment → `MIGRATE_DATABASE_URL` = connection string แบบ **Session pooler** ของ Supabase แล้วต่อท้ายด้วย `?sslmode=require`
+ตอนเริ่มทำงาน ระบบสร้างผู้ใช้ `bmerc_app` (ชื่อบน pooler คือ `bmerc_app.<project ref>`) ให้ API ใช้เอง และปิดสิทธิ์ของ `anon`/`authenticated` (Data API ของ Supabase)
+ผู้ใช้ `postgres` ของ Supabase ข้าม RLS ได้ จึงต้องไม่ให้ API ใช้เด็ดขาด ถ้าสร้าง `bmerc_app` ไม่ได้ เว็บจะไม่ยอมเริ่มทำงาน
 ที่อยู่เว็บจะเป็นแบบ `https://bmerc-xxxx.onrender.com` มี https ให้ฟรี
 
 ## ข้อจำกัดของแผนฟรี (สำคัญ)
@@ -47,8 +52,13 @@
 รวมงานเข้า `main` บน GitHub แล้ว Render จะ build และอัปเดตเว็บให้เอง (Auto-Deploy)
 
 ## ก่อนเปิดขายจริง
-- [ ] อัปเกรดฐานข้อมูลเป็นแบบเสียเงิน (มี backup รายวันให้) และเว็บเป็น Starter
-- [ ] ลบข้อมูลตัวอย่างออก หรือสร้างฐานข้อมูลใหม่ที่ว่างเปล่า
+- [ ] ย้ายฐานข้อมูลไปที่ที่ไม่หมดอายุ (Neon ฟรี) หรืออัปเกรด Render
+- [ ] ใส่ข้อมูลจริงใน `apps/web/src/lib/legal.ts` (ชื่อบริษัทที่จดทะเบียน ที่อยู่ อีเมลติดต่อ) และให้นักกฎหมายตรวจหน้า `/privacy` กับ `/terms`
+- [ ] **ลบข้อมูลตัวอย่าง + สร้างบัญชีเจ้าของระบบจริง** ด้วยคำสั่งเดียว:
+  1. ใส่ใน `apps/api/.env`: `OWNER_EMAIL=...`, `OWNER_NAME=...`, `OWNER_PASSWORD=...` (12 ตัวขึ้นไป)
+  2. รัน `PG_CONTAINER=bmerc-db-1 node apps/api/scripts/go-live.mjs --yes`
+     ระบบจะสำรองข้อมูลไว้ที่ `backups/before-go-live/` ก่อน แล้วลบบริษัท ผู้ใช้ งาน และ log ทั้งหมด
+     แต่เก็บแพ็กเกจ รายการรุ่นเครื่อง และประวัติ migration ไว้ แล้วสร้างบัญชีเจ้าของระบบใหม่ ถ้าพลาดตรงไหนจะไม่มีอะไรถูกลบ
+  3. ล็อกอินด้วยบัญชีใหม่ แล้วลบ `OWNER_PASSWORD` ออกจาก `.env`
 - [ ] ใส่ `SMTP_URL` และ `MAIL_FROM` ใน Render → bmerc → Environment
 - [ ] ตั้ง UptimeRobot และใส่โดเมนจริง (Render → Settings → Custom Domains)
-- [ ] เปลี่ยนรหัสผ่านบัญชีเจ้าของระบบ ตอนนี้ยังใช้รหัสของบัญชีตัวอย่าง
