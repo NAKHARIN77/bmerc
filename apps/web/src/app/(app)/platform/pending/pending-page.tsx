@@ -130,7 +130,7 @@ function Pending() {
                     <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
                       <Button className="h-9 !bg-success hover:!bg-[#0b6b4f]" title="Confirm the money arrived" onClick={() => (setConfirming(i.id), setRef(i.paymentRef ?? ""))}>
                         <Icon name="check" size={16} strokeWidth={2.4} />
-                        Paid
+                        Money received
                       </Button>
                       {i.slipUploadedAt && (
                         <Button
