@@ -34,6 +34,8 @@ export interface BillingSubscription {
 }
 
 export interface BillingInvoice {
+  /** Card payments through Stripe are set up (STRIPE_SECRET_KEY on the API). */
+  cardPayments?: boolean;
   id: string;
   number: string;
   periodStart: string;

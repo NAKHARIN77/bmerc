@@ -1,20 +1,22 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { LogView } from '../audit/log-view.js';
-import { conflict, notFound, parse } from '../common/http.js';
+import { ApiError, conflict, notFound, parse } from '../common/http.js';
 import { uuid } from '../common/paging.js';
 import { limitsFor, usageFor } from '../common/limits.js';
 import { planVatBps, taxOn } from '../common/region.js';
 import { AllowSuspended, CurrentUser, Roles } from '../auth/decorators.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { cardPaymentsOn, stripe } from './stripe.js';
 
 // Company side of plan billing (prototype Subscription, Checkout, Choose payment method, Receipt).
-// No payment provider is connected yet (design doc step 7): a company reports a bank transfer and the
-// platform owner confirms it in Pending payments. Paying an invoice for another plan moves the company to it.
+// Two ways to pay: report a bank transfer (the platform owner confirms it in Pending payments), or pay by card
+// through Stripe Checkout when STRIPE_SECRET_KEY is set (the Stripe webhook confirms it). Paying an invoice
+// for another plan moves the company to it.
 
 const CheckoutBody = z.object({ planId: z.uuid() });
 const NotifyBody = z.object({ method: z.enum(['bank_transfer']), reference: z.string().trim().min(3).max(200) });
@@ -58,6 +60,7 @@ export class BillingController {
       vatBps: planVatBps(company.country),
       plans,
       creditWeights: limits.creditWeights, // the weights this company bought
+      cardPayments: cardPaymentsOn(),
       usage: {
         creditsThisMonth: { used: usage.creditsThisMonth, limit: limits.maxJobsPerMonth },
         sites: { used: usage.sites, limit: limits.maxSites },
@@ -80,7 +83,42 @@ export class BillingController {
     const i = await this.db.raw.invoice.findFirst({ where: { id: parse(uuid, id), companyId: me.companyId! }, select: invoiceSelect });
     if (!i) throw notFound('Invoice');
     const company = await this.db.raw.company.findUniqueOrThrow({ where: { id: me.companyId! }, select: { name: true, legalName: true, taxId: true, billingEmail: true, billingAddress: true } });
-    return { ...view(i), company };
+    return { ...view(i), company, cardPayments: cardPaymentsOn() };
+  }
+
+  /** Pay by card: a Stripe Checkout page for exactly this invoice's total. The webhook marks it paid. */
+  @Post('invoices/:id/pay-card')
+  async payCard(@CurrentUser() me: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    const s = stripe();
+    if (!s) throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'CARD_PAYMENTS_OFF', 'Card payments are not set up yet. Pay by bank transfer');
+    const i = await this.db.raw.invoice.findFirst({ where: { id: parse(uuid, id), companyId: me.companyId! }, select: invoiceSelect });
+    if (!i) throw notFound('Invoice');
+    if (i.status !== 'open') throw conflict('INVOICE_NOT_OPEN', 'This invoice is already settled');
+    const company = await this.db.raw.company.findUniqueOrThrow({ where: { id: me.companyId! }, select: { billingEmail: true } });
+    const site = (process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3000').replace(/\/$/, '');
+    const back = `${site}/subscription/invoices/${i.id}`;
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const session = await s.checkout.sessions.create({
+      mode: 'payment',
+      client_reference_id: i.id,
+      customer_email: company.billingEmail ?? undefined,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: i.currency.toLowerCase(),
+            unit_amount: i.amountCents + i.taxCents,
+            product_data: { name: `BMERC ${i.plan?.name ?? 'plan'} · ${i.number}`, description: `${day(i.periodStart)} to ${day(i.periodEnd)}, VAT included` },
+          },
+        },
+      ],
+      metadata: { invoiceId: i.id, companyId: me.companyId! },
+      payment_intent_data: { description: `BMERC invoice ${i.number}`, metadata: { invoiceId: i.id, companyId: me.companyId! } },
+      success_url: `${back}?card=done`,
+      cancel_url: back,
+    });
+    await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'billing.card_checkout', entityType: 'invoice', entityId: i.id, after: { session: session.id }, ip: req.ip });
+    return { url: session.url };
   }
 
   /** Checkout: an invoice for one month of the chosen plan, VAT by the company's country. Reuses an unpaid one. */

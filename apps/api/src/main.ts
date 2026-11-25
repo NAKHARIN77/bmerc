@@ -15,7 +15,8 @@ export function configureApp(app: INestApplication) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: the Stripe webhook checks its signature against the exact bytes received.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app);
   await app.listen(process.env.PORT ?? process.env.API_PORT ?? 4000);
 }
