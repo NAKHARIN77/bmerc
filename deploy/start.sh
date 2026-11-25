@@ -1,8 +1,11 @@
 #!/bin/sh
-# Container start: migrate, set up the database login the API uses, then run the API and the site.
-# If either process stops, the container exits so the host restarts it.
+# Container start: migrate, set up the database login the API uses, then run the API and/or the site.
+#   SERVE=all (default, Render): the site on $PORT and the API on 127.0.0.1:4000 behind it.
+#   SERVE=api (Railway, with the site on Vercel): only the API, on $PORT.
+# If a process stops, the container exits so the host restarts it.
 set -e
 cd /app/apps/api
+SERVE="${SERVE:-all}"
 
 : "${MIGRATE_DATABASE_URL:?MIGRATE_DATABASE_URL must be set (the database owner connection)}"
 npx prisma migrate deploy
@@ -10,8 +13,14 @@ npx prisma migrate deploy
 # Prints the URL the API should use (the RLS-bound app role when it can be set up). Logs go to stderr.
 DATABASE_URL="${DATABASE_URL:-$(node scripts/prepare-db.mjs)}"
 export DATABASE_URL
-# Links in emails point at the public site. Render sets RENDER_EXTERNAL_URL.
+# Links in emails point at the public site. Render sets RENDER_EXTERNAL_URL; elsewhere set WEB_ORIGIN.
 export WEB_ORIGIN="${WEB_ORIGIN:-${RENDER_EXTERNAL_URL:-http://localhost:${PORT:-3000}}}"
+
+if [ "$SERVE" = "api" ]; then
+  # Requests arrive through the site's proxy (Vercel) and the host's router: take the client IP they forward.
+  export TRUST_PROXY="${TRUST_PROXY:-true}"
+  exec node dist/main.js
+fi
 
 PORT=4000 node dist/main.js &
 API=$!
