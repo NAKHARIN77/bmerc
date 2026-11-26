@@ -325,6 +325,10 @@ function JobCard(props: {
             Request Parts
           </Button>
         )}
+        {/* Same as dragging to "Cannot Repair"; dragging is awkward on touch screens and touchpads. */}
+        <Button className={btn} variant="danger" busy={busy} onClick={(e) => (stop(e), askFor(j, "unrepairable"))}>
+          Cannot repair
+        </Button>
       </>
     );
   else if (j.status === "waiting_parts")
