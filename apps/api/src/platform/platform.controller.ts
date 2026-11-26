@@ -13,6 +13,7 @@ import type { JobStatus } from '../generated/prisma/enums.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { monthStartUtc, periods } from '../common/periods.js';
 import { settleInvoice } from '../billing/settle.js';
+import { MailService } from '../mail/mail.service.js';
 
 // Platform owner console (prototype owner screens). The owner runs the service: companies, plans, billing and sites.
 // No access to a company's parts, stock, customers or repair work (decided 2026-11-24); job numbers come from
@@ -59,6 +60,7 @@ export class PlatformController {
   constructor(
     private readonly db: DbService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private async jobCounts() {
@@ -305,7 +307,7 @@ export class PlatformController {
       database: { ok: true, latencyMs: dbMs, sizeBytes: Number(size[0].bytes) },
       last24h: { logins, failedLogins: failed, auditEvents: events },
       // Invites and password resets are sent by email only when SMTP_URL is set (see MailService).
-      mail: { configured: !!process.env.SMTP_URL && process.env.SMTP_URL !== 'json', from: process.env.MAIL_FROM ?? null },
+      mail: { configured: !!process.env.SMTP_URL && process.env.SMTP_URL !== 'json', from: process.env.MAIL_FROM ?? null, lastError: this.mail.lastError },
       node: process.version,
     };
   }

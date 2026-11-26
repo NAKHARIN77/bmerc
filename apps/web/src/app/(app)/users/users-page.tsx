@@ -1,9 +1,9 @@
 "use client";
 
 import { ROLE_LABEL, SITE_ROLES } from "@bmerc/shared";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { api, errorMessage } from "@/lib/api";
+import { api, errorMessage, INVITE_EMAIL_FAILED } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
@@ -19,7 +19,9 @@ export function UsersPage() {
   const users = useApi<UserRow[]>(allowed ? "/users" : null);
   const sites = useApi<Site[]>(allowed ? "/sites" : null);
   const teams = useApi<Team[]>(allowed ? "/teams" : null);
-  const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
+  // The invite form sends ?mail=failed when the person was saved but their email did not go out.
+  const mailFailed = useSearchParams().get("mail") === "failed";
+  const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(mailFailed ? { tone: "danger", text: INVITE_EMAIL_FAILED } : null);
   const [q, setQ] = useState("");
 
   const siteName = useMemo(() => new Map((sites.data ?? []).map((s) => [s.id, s.name])), [sites.data]);
@@ -31,8 +33,9 @@ export function UsersPage() {
   async function act(label: string, run: () => Promise<unknown>) {
     setNotice(null);
     try {
-      await run();
-      setNotice({ tone: "success", text: label });
+      const res = await run();
+      const failed = !!res && typeof res === "object" && (res as { emailSent?: boolean }).emailSent === false;
+      setNotice(failed ? { tone: "danger", text: INVITE_EMAIL_FAILED } : { tone: "success", text: label });
       users.reload();
     } catch (e) {
       setNotice({ tone: "danger", text: errorMessage(e) });

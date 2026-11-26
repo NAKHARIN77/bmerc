@@ -71,8 +71,8 @@ export class UsersController {
 
   @Roles('company_admin')
   @Post(':id/resend-invite')
-  @HttpCode(204)
-  async resendInvite(@CurrentUser() me: AuthUser, @Param('id') id: string, @Req() req: Request) {
-    await this.users.resendInvite(me, parse(uuid, id), req.ip);
+  @HttpCode(200)
+  resendInvite(@CurrentUser() me: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    return this.users.resendInvite(me, parse(uuid, id), req.ip);
   }
 }

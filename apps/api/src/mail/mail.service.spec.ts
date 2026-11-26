@@ -25,4 +25,13 @@ describe('MailService', () => {
     expect(mail.configured).toBe(false);
     expect(mail.sent[0]).toMatchObject({ to: 'a@b.test' });
   });
+
+  it('reports a failed send and keeps the error for Platform health', async () => {
+    process.env.SMTP_URL = 'smtp://user:pass@127.0.0.1:1'; // nothing listens on port 1
+    process.env.MAIL_FROM = 'BMERC <no-reply@bmerc.test>';
+    const mail = new MailService();
+    expect(await mail.send({ to: 'a@b.test', subject: 'Hi', text: 'Body' })).toBe(false);
+    expect(mail.lastError).toMatchObject({ to: 'a@b.test' });
+    expect(mail.lastError?.message).toBeTruthy();
+  });
 });

@@ -56,8 +56,9 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
     setError(null);
     setFields({});
     try {
+      let mailFailed = false;
       if (user) await api(`/users/${user.id}`, { method: "PATCH", body });
-      else await api("/users", { method: "POST", body });
+      else mailFailed = (await api<{ emailSent?: boolean }>("/users", { method: "POST", body })).emailSent === false;
       // Next keeps this page alive (hidden) after navigating away, so clear it for the next visit.
       form.reset();
       setBusy(false);
@@ -65,7 +66,7 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
         setRole("technician");
         setSiteIds([]);
       }
-      router.push("/users");
+      router.push(mailFailed ? "/users?mail=failed" : "/users");
     } catch (err) {
       const byField = err instanceof ApiError ? err.fieldErrors() : {};
       setFields(byField);

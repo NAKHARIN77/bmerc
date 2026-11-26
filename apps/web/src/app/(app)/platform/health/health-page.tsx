@@ -10,7 +10,7 @@ interface Health {
   uptimeSeconds: number;
   database: { ok: boolean; latencyMs: number; sizeBytes: number };
   last24h: { logins: number; failedLogins: number; auditEvents: number };
-  mail: { configured: boolean; from: string | null };
+  mail: { configured: boolean; from: string | null; lastError: { at: string; to: string; message: string } | null };
   node: string;
 }
 
@@ -49,7 +49,15 @@ function HealthView() {
           { k: "Database", v: `Connected, ${size(d.database.sizeBytes)}`, ok: d.database.ok },
           { k: "Sign-ins (24 h)", v: `${d.last24h.logins} successful, ${d.last24h.failedLogins} failed`, ok: failRate <= 20 },
           { k: "Audit log (24 h)", v: `${d.last24h.auditEvents} events recorded`, ok: true },
-          { k: "Email", v: d.mail.configured ? `Sending from ${d.mail.from ?? "the default address"}` : "Not set up: invites and password resets are not emailed (set SMTP_URL)", ok: d.mail.configured },
+          {
+            k: "Email",
+            v: !d.mail.configured
+              ? "Not set up: invites and password resets are not emailed (set SMTP_URL)"
+              : d.mail.lastError
+                ? `Last email failed (${new Date(d.mail.lastError.at).toLocaleString()}, to ${d.mail.lastError.to}): ${d.mail.lastError.message}. Sender: ${d.mail.from ?? "the default address"}`
+                : `Sending from ${d.mail.from ?? "the default address"}`,
+            ok: d.mail.configured && !d.mail.lastError,
+          },
           { k: "Error tracking and uptime history", v: "Not connected yet (Sentry and an uptime check, before launch)", ok: false },
         ]}
         rowKey={(r) => r.k}

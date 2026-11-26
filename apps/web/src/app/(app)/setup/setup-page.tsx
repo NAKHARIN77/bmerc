@@ -3,7 +3,7 @@
 import { countries, ROLE_LABEL, type Role } from "@bmerc/shared";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { api, ApiError, errorMessage, INVITE_EMAIL_FAILED } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { Page, Site, Team, UserRow } from "@/lib/types";
@@ -214,6 +214,7 @@ function TeamsStep() {
   const t = useSubmit();
   const u = useSubmit();
   const [role, setRole] = useState<Role>("technician");
+  const [mailWarning, setMailWarning] = useState(false);
   const siteName = (id: string) => sites.data?.find((x) => x.id === id)?.name ?? "—";
 
   async function addTeam(e: FormEvent<HTMLFormElement>) {
@@ -237,7 +238,9 @@ function TeamsStep() {
       teamId: bySite ? null : String(f.get("teamId") ?? "") || null,
       siteIds: bySite ? f.getAll("siteIds").map(String) : undefined,
     };
-    if (await u.run(() => api("/users", { method: "POST", body }))) {
+    let mailFailed = false;
+    if (await u.run(async () => { mailFailed = (await api<{ emailSent?: boolean }>("/users", { method: "POST", body })).emailSent === false; })) {
+      setMailWarning(mailFailed);
       form.reset();
       users.reload();
       teams.reload();
@@ -337,6 +340,7 @@ function TeamsStep() {
           </div>
         </form>
         {u.error && <Alert>{u.error}</Alert>}
+        {mailWarning && <Alert>{INVITE_EMAIL_FAILED}</Alert>}
         <Table
           rows={(users.data?.items ?? []).filter((x) => x.role !== "company_admin")}
           rowKey={(x) => x.id}

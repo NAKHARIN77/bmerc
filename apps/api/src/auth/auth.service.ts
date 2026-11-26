@@ -152,10 +152,11 @@ export class AuthService {
   // ───── Invites ─────
 
   /** Sends (or re-sends) an invite link. Earlier unused invite links for this user stop working. */
-  async sendInvite(userId: string, invitedBy: { id: string; fullName: string }) {
+  /** True when the email was handed to the mail provider. */
+  async sendInvite(userId: string, invitedBy: { id: string; fullName: string }): Promise<boolean> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, include: { company: true } });
     const token = await this.createToken(user.id, 'invite', INVITE_TTL_MS, invitedBy.id);
-    await this.mail.send({
+    return this.mail.send({
       to: user.email,
       subject: `You're invited to ${user.company?.name ?? 'BMERC'} on BMERC`,
       text:

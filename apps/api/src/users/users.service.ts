@@ -83,12 +83,12 @@ export class UsersService {
       }
       return u;
     });
-    await this.auth.sendInvite(user.id, me);
+    const emailSent = await this.auth.sendInvite(user.id, me);
     await this.audit.log({
       companyId: me.companyId, actorUserId: me.id, action: 'user.invited', entityType: 'user', entityId: user.id,
-      after: { email, role: input.role, teamId: input.teamId ?? null, siteIds }, ip,
+      after: { email, role: input.role, teamId: input.teamId ?? null, siteIds, emailSent }, ip,
     });
-    return this.get(me, user.id);
+    return { ...(await this.get(me, user.id)), emailSent };
   }
 
   async update(me: AuthUser, id: string, patch: UserPatch, ip?: string) {
@@ -141,8 +141,9 @@ export class UsersService {
       throw new ApiError(HttpStatus.CONFLICT, 'ALREADY_ACCEPTED', 'This user has already set a password');
     }
     if (!target.isActive) throw new ApiError(HttpStatus.CONFLICT, 'USER_INACTIVE', 'Activate this user first');
-    await this.auth.sendInvite(id, me);
-    await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'user.invite_resent', entityType: 'user', entityId: id, ip });
+    const emailSent = await this.auth.sendInvite(id, me);
+    await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'user.invite_resent', entityType: 'user', entityId: id, after: { emailSent }, ip });
+    return { emailSent };
   }
 
   // ───── Rules ─────

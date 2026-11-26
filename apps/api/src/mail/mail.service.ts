@@ -18,6 +18,8 @@ export interface MailMessage {
 export class MailService {
   private readonly logger = new Logger('Mail');
   readonly sent: MailMessage[] = [];
+  /** The most recent delivery failure, shown on Platform health so a broken sender is noticed. */
+  lastError: { at: string; to: string; message: string } | null = null;
   private transport: Transporter | null | undefined;
 
   /** True when real sending is configured (shown on Platform health). */
@@ -43,8 +45,10 @@ export class MailService {
       } catch (e) {
         // The invite or reset is already saved; the person can ask for it again. Do not fail the request.
         this.logger.error(`Email to ${msg.to} ("${msg.subject}") failed: ${(e as Error).message}`);
+        this.lastError = { at: new Date().toISOString(), to: msg.to, message: (e as Error).message };
         return false;
       }
+      this.lastError = null;
       return true;
     }
     if (process.env.NODE_ENV === 'production') {
