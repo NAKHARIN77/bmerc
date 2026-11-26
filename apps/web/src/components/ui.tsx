@@ -109,7 +109,18 @@ export function Field({ label, error, hint, children }: { label: string; error?:
   );
 }
 
-export const Input = ({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) => <input className={cx(inputClass, className)} {...rest} />;
+// Scrolling the page with the pointer over a focused number field would change its value (0 -> 0.01), so a
+// wheel over a number field lets go of it instead.
+export const Input = ({ className, onWheel, ...rest }: InputHTMLAttributes<HTMLInputElement>) => (
+  <input
+    className={cx(inputClass, className)}
+    onWheel={(e) => {
+      if (rest.type === "number") e.currentTarget.blur();
+      onWheel?.(e);
+    }}
+    {...rest}
+  />
+);
 export const Select = ({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) => <select className={cx(inputClass, className)} {...rest} />;
 export const Textarea = ({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea className={cx(inputClass, "h-24 resize-none py-3", className)} {...rest} />

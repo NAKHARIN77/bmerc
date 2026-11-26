@@ -283,7 +283,8 @@ function JobCard(props: {
   const technician = useSession().me.role === "technician"; // technicians ask the stock keeper on the Record test page
   const test = j.tests[0];
   const printed = j.qrPrintLogs[0];
-  const btn = "mt-2 h-9 w-full";
+  // Long labels wrap on narrow cards, so the height grows with the text.
+  const btn = "mt-2 h-auto! min-h-9 w-full py-2 leading-tight";
   const working = j.status === "in_repair" || j.status === "waiting_parts";
   let extra: ReactNode = null;
   if (j.status === "todo")
