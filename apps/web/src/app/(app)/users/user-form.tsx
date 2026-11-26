@@ -35,9 +35,11 @@ function UserFormLoader({ mode }: { mode: "new" | "edit" }) {
 function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf: boolean; sites: Site[]; teams: Team[] }) {
   const router = useRouter();
   // Opened from a site page (?siteId=): start with that site and its first team.
-  const presetSite = useSearchParams().get("siteId");
+  const params = useSearchParams();
+  const presetSite = params.get("siteId");
+  const presetRole = params.get("role");
   const fromSite = !user && presetSite && sites.some((s) => s.id === presetSite) ? presetSite : null;
-  const [role, setRole] = useState<Role>(user?.role ?? "technician");
+  const [role, setRole] = useState<Role>(user?.role ?? (presetRole && (ROLES as readonly string[]).includes(presetRole) ? (presetRole as Role) : "technician"));
   const [siteIds, setSiteIds] = useState<string[]>(user?.siteIds ?? (fromSite ? [fromSite] : []));
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);

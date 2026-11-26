@@ -62,6 +62,11 @@ export function SitePage() {
                 + Add technician
               </ButtonLink>
             )}
+            {can("company_admin") && (
+              <ButtonLink href={`/users/new?siteId=${s.id}&role=stock_keeper`} variant="secondary">
+                + Add stock keeper
+              </ButtonLink>
+            )}
             {can("company_admin", "site_manager") && <ButtonLink href={`/teams/new?siteId=${s.id}`}>+ Add team</ButtonLink>}
             {can("company_admin") && (
               <ButtonLink href={`/sites/${s.id}/edit`} variant="secondary">
