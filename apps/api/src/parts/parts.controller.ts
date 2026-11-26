@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
@@ -31,7 +31,7 @@ const select = { id: true, sku: true, name: true, category: true, modelIds: true
 const SKU_TAKEN = ['SKU_TAKEN', 'Another part already uses this SKU'] as const;
 
 // Catalog only. Stock in / out / adjust are ledger operations and come with the stock work (plan step 6).
-// No delete: parts are referenced by the stock ledger. Set isActive to false instead.
+// Delete removes a part only while nothing refers to it; a part with stock history is retired (isActive false) instead.
 @Controller('parts')
 export class PartsController {
   constructor(
@@ -120,6 +120,39 @@ export class PartsController {
       before: changed(before, data), after: changed(after, data), ip: req.ip,
     });
     return after;
+  }
+
+  /**
+   * Removes a part from the catalog. A part that was ever received, issued, transferred or requested is retired
+   * instead (isActive false): the stock ledger and old jobs keep pointing at it, and it leaves every picker.
+   */
+  @Roles('company_admin', 'stock_keeper')
+  @Delete(':id')
+  async remove(@CurrentUser() me: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    const partId = parse(uuid, id);
+    const result = await this.db.tenantTx(me, async (tx) => {
+      const before = await tx.part.findUnique({ where: { id: partId }, select });
+      if (!before) throw notFound('Part');
+      const [moves, used, transfers, requests, held] = await Promise.all([
+        tx.stockMovement.count({ where: { partId } }),
+        tx.jobPart.count({ where: { partId } }),
+        tx.stockTransfer.count({ where: { partId } }),
+        tx.partRequest.count({ where: { partId } }),
+        tx.siteStock.count({ where: { partId, qty: { gt: 0 } } }),
+      ]);
+      if (moves + used + transfers + requests + held > 0) {
+        await tx.part.update({ where: { id: partId }, data: { isActive: false } });
+        return { before, outcome: 'retired' as const };
+      }
+      await tx.siteStock.deleteMany({ where: { partId } });
+      await tx.part.delete({ where: { id: partId } });
+      return { before, outcome: 'deleted' as const };
+    });
+    await this.audit.log({
+      companyId: me.companyId, actorUserId: me.id, action: result.outcome === 'deleted' ? 'part.deleted' : 'part.retired',
+      entityType: 'part', entityId: partId, before: result.before, ip: req.ip,
+    });
+    return { outcome: result.outcome };
   }
 
   /** Stock rows this user may see; with siteId, only that site (and nothing if it is not one of theirs). */

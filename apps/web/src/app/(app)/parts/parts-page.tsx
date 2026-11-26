@@ -1,13 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useApi } from "@/lib/use-api";
 import { qs, useDebounced } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { MinerModel, Page, PartRow } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
-import { ButtonLink, CellLink, Chip, ErrorState, Loading, PageHeader, Pager, SearchBar, Select, Table } from "@/components/ui";
+import { Alert, ButtonLink, CellLink, Chip, ErrorState, Loading, PageHeader, Pager, SearchBar, Select, Table } from "@/components/ui";
 
 const LIMIT = 20;
 
@@ -19,6 +19,9 @@ export function PartStatus({ part }: { part: Pick<PartRow, "isActive" | "belowMi
 export function PartsPage() {
   const { me, can } = useSession();
   const router = useRouter();
+  const params = useSearchParams();
+  const done = params.get("done");
+  const doneName = params.get("name") ?? "The part";
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
     const [page, setPage] = useState(1);
@@ -44,6 +47,10 @@ export function PartsPage() {
           </>
         }
       />
+      {done === "deleted" && <Alert tone="success">{doneName} was deleted.</Alert>}
+      {done === "retired" && (
+        <Alert tone="success">{doneName} has stock history, so it was retired instead: it stays here as Retired for old jobs, and no longer shows when picking parts.</Alert>
+      )}
       <SearchBar
         value={q}
         onChange={(v) => {
