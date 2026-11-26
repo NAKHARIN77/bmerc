@@ -38,7 +38,9 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
       { label: "Part requests", href: "/stock/requests", icon: "box", roles: [...ADMIN, "stock_keeper", "head_technician"], badge: "partRequests" },
       // Stock keepers work in stock every day. Company admins get it too: in a small company the admin keeps the stock.
-      { label: "Stock", href: "/stock", icon: "list", roles: ["company_admin", "stock_keeper"], also: ["/parts"] },
+      { label: "Stock", href: "/stock", icon: "list", roles: ["company_admin", "stock_keeper"] },
+      // One click to the parts list: add, edit or delete a part (and the miner models it fits) when a customer sends one that is not listed.
+      { label: "Parts", href: "/parts", icon: "box", roles: ["company_admin", "stock_keeper"], also: ["/miner-models"] },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/stock", "/parts", "/technicians"] },
       { label: "Staff", href: "/users", icon: "users", roles: ADMIN },
       { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
