@@ -6,12 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { Alert, Button, ButtonLink, Card, Field, Input, PageHeader } from "@/components/ui";
+import { useSession } from "@/lib/session";
 
 const CODE = /BMERC-[A-Z0-9]{4,16}/i;
 
 /** Scan the QR label (camera) or type the code, then open the device history. */
 export function ScanPage() {
   const router = useRouter();
+  const { can } = useSession();
   const fromUrl = useSearchParams().get("code");
   const video = useRef<HTMLVideoElement>(null);
   const [camera, setCamera] = useState<"starting" | "on" | "off">("starting");
@@ -105,9 +107,11 @@ export function ScanPage() {
         title="Scan QR"
         subtitle="Scan the QR label on the device to see its repair history"
         actions={
-          <ButtonLink href="/board" variant="secondary">
-            Back to board
-          </ButtonLink>
+          can("technician", "head_technician") && (
+            <ButtonLink href="/board" variant="secondary">
+              Back to board
+            </ButtonLink>
+          )
         }
       />
       {error && (

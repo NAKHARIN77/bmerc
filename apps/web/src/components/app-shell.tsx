@@ -33,10 +33,12 @@ const NAV: Array<{ group: string; items: NavItem[] }> = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices", "/job-cards"] },
       { label: "My jobs", href: "/board", icon: "wrench", roles: BENCH, also: ["/jobs", "/devices", "/job-cards"] },
-      { label: "Scan QR", href: "/scan", icon: "qr", roles: [...BENCH, "stock_keeper"] },
+      { label: "Scan QR", href: "/scan", icon: "qr", roles: BENCH },
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
       { label: "Part requests", href: "/stock/requests", icon: "box", roles: [...ADMIN, "stock_keeper", "head_technician"], badge: "partRequests" },
+      // Stock keepers work in stock every day; listed before Sites so it lights up on /stock pages.
+      { label: "Stock", href: "/stock", icon: "list", roles: ["stock_keeper"] },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/stock", "/parts", "/technicians"] },
       { label: "Staff", href: "/users", icon: "users", roles: ADMIN },
       { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
