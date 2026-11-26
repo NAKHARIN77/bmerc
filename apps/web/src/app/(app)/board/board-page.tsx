@@ -280,7 +280,11 @@ function JobCard(props: {
   saved: () => void;
 }) {
   const { job: j, busy, move, askFor, canDispatch } = props;
-  const technician = useSession().me.role === "technician"; // technicians ask the stock keeper on the Record test page
+  const { me } = useSession();
+  const technician = me.role === "technician"; // technicians ask the stock keeper on the Record test page
+  // A technician sees teammates' jobs but can only work on their own (or pick up an unassigned one).
+  const othersJob = technician && !!j.assignee && j.assignee.id !== me.id;
+  const holder = !j.assignee ? "Not assigned" : j.assignee.id === me.id ? "You" : j.assignee.fullName;
   const test = j.tests[0];
   const printed = j.qrPrintLogs[0];
   // Long labels wrap on narrow cards, so the height grows with the text.
@@ -349,9 +353,11 @@ function JobCard(props: {
       </>
     );
 
+  if (othersJob) extra = <div className="mt-2.5 text-xs text-muted">Only {j.assignee!.fullName} can update this job.</div>;
+
   return (
     <div
-      draggable
+      draggable={!othersJob}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", j.id)}
       onClick={props.open}
       className={`mb-3 cursor-grab rounded-[10px] bg-white p-3.5 shadow-[0_1px_2px_rgba(0,0,0,.05)] transition-shadow hover:shadow-[0_4px_12px_rgba(0,99,152,.2)] ${busy ? "opacity-50" : ""}`}
@@ -366,6 +372,9 @@ function JobCard(props: {
       <div className="mb-1.5 mt-1 text-[13px] text-ink">{j.reportedFault}</div>
       <div className="text-xs text-muted">
         {j.customer.name} · {WORK_TYPE_LABEL[j.workType]}
+      </div>
+      <div className="mt-1.5 text-xs text-muted">
+        Technician: <b className={holder === "You" ? "text-info" : "text-ink"}>{holder}</b>
       </div>
       {test && (
         <div className="mt-1.5 text-xs font-semibold text-navy">
@@ -390,9 +399,6 @@ function JobCard(props: {
       )}
       {j.status === "todo" && (
         <>
-          <div className="mt-2.5 text-xs text-muted">
-            Assigned to: <b>{j.assignee?.fullName ?? "Not assigned"}</b>
-          </div>
           {props.assignees && (
             <Select aria-label="Assign to technician" className="mt-1.5 h-9" value="" onClick={stop} onChange={(e) => e.target.value && props.assign(j, e.target.value)}>
               <option value="">Assign to technician...</option>
@@ -405,8 +411,8 @@ function JobCard(props: {
           )}
         </>
       )}
-      {working && <RepairNote job={j} saved={props.saved} />}
-      {working && (
+      {working && !othersJob && <RepairNote job={j} saved={props.saved} />}
+      {working && !othersJob && (
         <span className="block" onClick={stop}>
           <ButtonLink href={`/jobs/${j.id}/test`} variant="secondary" className="mt-2.5 h-8 w-full">
             Record test
