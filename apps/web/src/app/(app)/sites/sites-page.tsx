@@ -29,14 +29,7 @@ export function SitesPage() {
         title="Sites"
         subtitle="Your repair center branches. Customers send devices to a site for repair"
         actions={
-          isAdmin && (
-            <>
-              <ButtonLink href="/users/new" variant="secondary">
-                + Add technician
-              </ButtonLink>
-              <ButtonLink href="/sites/new">+ Add site</ButtonLink>
-            </>
-          )
+          isAdmin && <ButtonLink href="/sites/new">+ Add site</ButtonLink>
         }
       />
       <KpiRow>
