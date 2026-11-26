@@ -8,7 +8,7 @@ import { useSession } from "@/lib/session";
 import type { CustomerDetail, JobRow, JobSummary, Page } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
 import { StatusChip } from "@/components/chips";
-import { Alert, Button, ButtonLink, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, Table } from "@/components/ui";
+import { Alert, Button, ButtonLink, Card, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, Table } from "@/components/ui";
 
 export function CustomerPage() {
   const { id } = useParams<{ id: string }>();
@@ -76,6 +76,15 @@ export function CustomerPage() {
         <Kpi label="Open jobs" value={summary.data?.open ?? "—"} caption="Not yet passed QC" tone="warn" />
         <Kpi label="Country" value={c.country ?? "—"} caption="Customer location" tone="info" />
       </KpiRow>
+      <Card className="mb-4">
+        <b className="text-base">Contact</b>
+        <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <ContactItem label="Contact person">{c.contactName}</ContactItem>
+          <ContactItem label="Phone">{c.phone && <a className="font-semibold text-info hover:underline" href={`tel:${c.phone.replace(/[^+\d]/g, "")}`}>{c.phone}</a>}</ContactItem>
+          <ContactItem label="Email">{c.email && <a className="font-semibold text-info hover:underline" href={`mailto:${c.email}`}>{c.email}</a>}</ContactItem>
+          <ContactItem label="Country">{c.country}</ContactItem>
+        </dl>
+      </Card>
       {jobs.error ? (
         <ErrorState error={jobs.error} onRetry={jobs.reload} />
       ) : !jobs.data ? (
@@ -96,5 +105,14 @@ export function CustomerPage() {
         />
       )}
     </>
+  );
+}
+
+function ContactItem({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-muted">{label}</dt>
+      <dd className="mt-0.5 break-words text-ink">{children || "—"}</dd>
+    </div>
   );
 }
