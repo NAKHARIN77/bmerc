@@ -131,6 +131,16 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
                   : "A site manager sees only the sites picked here and can manage more than one. The company admin sees every site.")}
             </p>
           </fieldset>
+        ) : TEAM_ROLES.includes(role) && bySite.length === 0 ? (
+          <div className="mb-4 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-ink">
+            <b>No teams yet.</b> A technician or head technician must belong to a team, and each team works at one site.{" "}
+            {sites.length === 0 ? "Add a site first, then a team." : "Add a team first, then invite them."}
+            <div className="mt-2">
+              <ButtonLink href={sites.length === 0 ? "/sites/new" : "/teams/new"} variant="secondary">
+                {sites.length === 0 ? "+ Add site" : "+ Add team"}
+              </ButtonLink>
+            </div>
+          </div>
         ) : TEAM_ROLES.includes(role) ? (
           <Field label="Team" error={fields.teamId} hint="Technicians see the jobs of their team's site">
             {(id) => (
