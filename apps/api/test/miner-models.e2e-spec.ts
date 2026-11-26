@@ -11,6 +11,9 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 const PW = 'Demo1234!';
 const OWNER = 'owner@bmerc.demo';
 const ADMIN = 'admin@siamhash.demo';
+const STOCK = 'stock@siamhash.demo';
+const TECH = 'tech@siamhash.demo';
+const OTHER = 'admin@rayong.demo'; // another company (active)
 const owner = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.MIGRATE_DATABASE_URL }) });
 
 describe('Miner models (e2e)', () => {
@@ -21,6 +24,7 @@ describe('Miner models (e2e)', () => {
   const get = (who: string, path: string) => http().get(`/api/v1${path}`).set(auth(who));
   const post = (who: string, path: string, body: object) => http().post(`/api/v1${path}`).set(auth(who)).send(body);
   const patch = (who: string, path: string, body: object) => http().patch(`/api/v1${path}`).set(auth(who)).send(body);
+  const del = (who: string, path: string) => http().delete(`/api/v1${path}`).set(auth(who));
   const tag = Date.now().toString(36);
   const made = { models: [] as string[], parts: [] as string[] };
 
@@ -29,7 +33,7 @@ describe('Miner models (e2e)', () => {
     app = mod.createNestApplication();
     configureApp(app);
     await app.init();
-    for (const email of [OWNER, ADMIN]) {
+    for (const email of [OWNER, ADMIN, OTHER, STOCK, TECH]) {
       tokens[email] = (await http().post('/api/v1/auth/login').send({ email, password: PW }).expect(200)).body.accessToken;
     }
   });
@@ -76,5 +80,39 @@ describe('Miner models (e2e)', () => {
     await post(ADMIN, '/parts', { sku: `U-${tag}`, name: 'Unknown fit', modelIds: ['00000000-0000-4000-8000-000000000000'] }).expect(404);
     const cleared = (await patch(ADMIN, `/parts/${p.id}`, { modelIds: [] }).expect(200)).body;
     expect(cleared.modelIds).toEqual([]);
+  });
+
+  it('a company adds, edits and deletes its own models; other companies never see them', async () => {
+    const name = `Own Miner ${tag}`;
+    await post(TECH, '/miner-models', { brand: 'Bitmain', name, hashboards: 3 }).expect(403);
+    const m = (await post(STOCK, '/miner-models', { brand: 'Bitmain', name, hashboards: 3, chipModel: 'BM1398' }).expect(201)).body;
+    made.models.push(m.id);
+    expect(m.own).toBe(true);
+    // Same name again, or the name of a shared model: 409.
+    expect((await post(ADMIN, '/miner-models', { brand: 'Bitmain', name: name.toUpperCase(), hashboards: 3 }).expect(409)).body.code).toBe('MODEL_TAKEN');
+    await post(ADMIN, '/miner-models', { brand: 'Bitmain', name: 'antminer s19', hashboards: 3 }).expect(409);
+
+    const mine = (await get(ADMIN, '/miner-models').expect(200)).body as Array<{ id: string; own: boolean; name: string }>;
+    expect(mine.find((x) => x.id === m.id)?.own).toBe(true);
+    expect(mine.find((x) => x.name === 'Antminer S19')?.own).toBe(false);
+    const theirs = (await get(OTHER, '/miner-models').expect(200)).body as Array<{ id: string }>;
+    expect(theirs.some((x) => x.id === m.id)).toBe(false);
+    await patch(OTHER, `/miner-models/${m.id}`, { hashboards: 4 }).expect(404);
+    await del(OTHER, `/miner-models/${m.id}`).expect(404);
+    expect((await get(OWNER, '/platform/miner-models').expect(200)).body.some((x: { id: string }) => x.id === m.id)).toBe(false);
+
+    // A part may fit the company's own model; another company cannot use it.
+    const part = (await post(ADMIN, '/parts', { sku: `OWN-${tag}`, name: 'Own board', modelIds: [m.id] }).expect(201)).body;
+    made.parts.push(part.id);
+    await post(OTHER, '/parts', { sku: `OWN-${tag}`, name: 'Nope', modelIds: [m.id] }).expect(404);
+
+    // Shared models cannot be changed by a company.
+    const shared = mine.find((x) => x.name === 'Antminer S19')!;
+    expect((await patch(ADMIN, `/miner-models/${shared.id}`, { hashboards: 4 }).expect(409)).body.code).toBe('SHARED_MODEL');
+    await del(ADMIN, `/miner-models/${shared.id}`).expect(409);
+
+    expect((await patch(STOCK, `/miner-models/${m.id}`, { hashboards: 4 }).expect(200)).body.hashboards).toBe(4);
+    expect((await del(ADMIN, `/miner-models/${m.id}`).expect(200)).body).toEqual({ outcome: 'deleted' });
+    expect((await get(ADMIN, `/parts/${part.id}`).expect(200)).body.modelIds).toEqual([]);
   });
 });

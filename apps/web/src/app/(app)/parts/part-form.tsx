@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
@@ -23,6 +23,12 @@ function PartFormLoader({ mode }: { mode: "new" | "edit" }) {
   const existing = useApi<PartDetail>(mode === "edit" && allowed ? `/parts/${id}` : null);
   const categories = useApi<string[]>(allowed ? "/parts/categories" : null);
   const models = useApi<MinerModel[]>(allowed ? "/miner-models" : null);
+  // A model added on the Miner models page (other tab) shows up when the user comes back here.
+  const reloadModels = models.reload;
+  useEffect(() => {
+    window.addEventListener("focus", reloadModels);
+    return () => window.removeEventListener("focus", reloadModels);
+  }, [reloadModels]);
   if (!allowed) return <NoAccess />;
   if (mode === "edit") {
     if (existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
@@ -130,6 +136,13 @@ function PartForm({ part, categories, models }: { part: PartDetail | null; categ
             ))}
             {models.length === 0 && <span className="text-sm text-muted">No miner models yet.</span>}
           </div>
+          <p className="mt-1 text-xs text-neutral">
+            Model not listed?{" "}
+            <a href="/miner-models" target="_blank" rel="noreferrer" className="font-semibold text-info hover:underline">
+              Add it on Miner models
+            </a>{" "}
+            (opens in a new tab). It shows here when you come back to this tab.
+          </p>
         </fieldset>
         <label className="mb-4 flex items-center gap-2 text-sm">
           <input type="checkbox" name="isActive" defaultChecked={part?.isActive ?? true} />

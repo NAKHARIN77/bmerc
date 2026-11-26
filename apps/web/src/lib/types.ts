@@ -308,6 +308,8 @@ export interface MinerModel {
   /** The platform owner checked the numbers. */
   verified: boolean;
   isActive: boolean;
+  /** Company list only: true for a model this company added itself (the rest is the shared BMERC list). */
+  own?: boolean;
 }
 
 /** A technician's request for parts, decided by the stock keeper or a lead. */

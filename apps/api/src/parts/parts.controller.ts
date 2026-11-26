@@ -100,7 +100,7 @@ export class PartsController {
   @Post()
   async create(@CurrentUser() me: AuthUser, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartBody, body);
-    await this.assertModels(data.modelIds);
+    await this.assertModels(me, data.modelIds);
     const part = await uniqueOr409(this.db.tenant(me).part.create({ data: { ...data, companyId: me.companyId! }, select }), ...SKU_TAKEN);
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'part.created', entityType: 'part', entityId: part.id, after: part, ip: req.ip });
     return part;
@@ -110,7 +110,7 @@ export class PartsController {
   @Patch(':id')
   async update(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartPatch, body);
-    await this.assertModels(data.modelIds);
+    await this.assertModels(me, data.modelIds);
     const db = this.db.tenant(me);
     const before = await db.part.findUnique({ where: { id: parse(uuid, id) }, select });
     if (!before) throw notFound('Part');
@@ -161,9 +161,10 @@ export class PartsController {
     return me.siteIds === null ? {} : { siteId: { in: me.siteIds } };
   }
 
-  private async assertModels(ids?: string[]) {
+  /** The shared list plus the company's own models (RLS hides other companies' models). */
+  private async assertModels(me: AuthUser, ids?: string[]) {
     if (!ids?.length) return;
-    const found = await this.db.raw.minerModel.count({ where: { id: { in: ids } } });
+    const found = await this.db.tenant(me).minerModel.count({ where: { id: { in: ids } } });
     if (found !== new Set(ids).size) throw notFound('Miner model');
   }
 }
