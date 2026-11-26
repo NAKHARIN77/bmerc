@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Role } from "@bmerc/shared";
 import { Avatar, RoleBadge, roleDoes, roleKey, roleLabel, roleStyle, workplace } from "./role";
 import { SessionProvider, useSession } from "@/lib/session";
@@ -95,6 +95,9 @@ function Shell({ children }: { children: ReactNode }) {
   const activeHref = menu
     .flatMap((g) => g.items.filter(visible))
     .reduce<{ href: string | null; len: number }>((best, i) => (matchLen(i) > best.len ? { href: i.href, len: matchLen(i) } : best), { href: null, len: -1 }).href;
+  // Menu pages are the top of their section; every other page gets a "Back" link at the top left.
+  const menuPage = menu.some((g) => g.items.some((i) => visible(i) && i.href === pathname));
+  const homeHref = me.isPlatformAdmin || !(me.role === "technician" || me.role === "head_technician") ? "/dashboard" : "/board";
   const home = pathname === "/dashboard" || (pathname === "/board" && (me.role === "technician" || me.role === "head_technician"));
 
   // Classes for "shown when the menu is expanded" and the aside width, per screen size.
@@ -184,6 +187,7 @@ function Shell({ children }: { children: ReactNode }) {
         <div className="px-4 pb-12 pt-6 sm:px-6">
           <QuotaBanner />
           {home && <Welcome me={me} />}
+          {!menuPage && <BackLink pathname={pathname} home={homeHref} />}
           {children}
         </div>
       </main>
@@ -297,5 +301,46 @@ export function NoAccess() {
       <h1 className="text-xl font-semibold text-navy">No access</h1>
       <p className="mt-2 text-muted">Your role cannot open this page. Ask your company admin if you need it.</p>
     </Card>
+  );
+}
+
+// Pages that exist, so "Back" without browser history can fall back to the nearest real parent page.
+const ROUTES = [
+  "/account/password", "/board", "/customers", "/customers/[id]", "/dashboard", "/devices", "/devices/[id]", "/job-cards", "/jobs",
+  "/jobs/[id]", "/miner-models", "/parts", "/parts/[id]", "/platform/audit", "/platform/companies/[id]", "/platform/health",
+  "/platform/models", "/platform/payments", "/platform/pending", "/platform/plans", "/platform/quotas", "/platform/quotas/[id]",
+  "/platform/reports", "/platform/revenue", "/platform/sites", "/repair-invoices/[id]", "/reports", "/scan", "/settings/company",
+  "/setup", "/sites", "/sites/[id]", "/stock", "/stock/requests", "/stock/transfers", "/subscription", "/team", "/teams",
+  "/technicians", "/technicians/[id]", "/users",
+].map((r) => new RegExp(`^${r.replace(/\[id\]/g, "[^/]+")}$`));
+
+/** The closest page above this one, e.g. /sites/123/edit -> /sites/123, /subscription/invoices/9 -> /subscription. */
+function parentOf(pathname: string, home: string) {
+  const parts = pathname.split("/").filter(Boolean);
+  while (parts.length > 1) {
+    parts.pop();
+    const p = `/${parts.join("/")}`;
+    if (ROUTES.some((r) => r.test(p))) return p;
+  }
+  return home;
+}
+
+// Counts page changes inside the app, so Back can use the browser history when there is some.
+let visitedInApp = 0;
+
+function BackLink({ pathname, home }: { pathname: string; home: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    visitedInApp += 1;
+  }, [pathname]);
+  return (
+    <button
+      type="button"
+      onClick={() => (visitedInApp > 1 && window.history.length > 1 ? router.back() : router.push(parentOf(pathname, home)))}
+      className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-info hover:underline"
+    >
+      <Icon name="arrowLeft" size={16} aria-hidden />
+      Back
+    </button>
   );
 }
