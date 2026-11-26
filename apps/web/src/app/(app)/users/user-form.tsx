@@ -1,7 +1,7 @@
 "use client";
 
 import { ROLE_LABEL, ROLES, SITE_ROLES, TEAM_ROLES, type Role } from "@bmerc/shared";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -34,8 +34,11 @@ function UserFormLoader({ mode }: { mode: "new" | "edit" }) {
 
 function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf: boolean; sites: Site[]; teams: Team[] }) {
   const router = useRouter();
+  // Opened from a site page (?siteId=): start with that site and its first team.
+  const presetSite = useSearchParams().get("siteId");
+  const fromSite = !user && presetSite && sites.some((s) => s.id === presetSite) ? presetSite : null;
   const [role, setRole] = useState<Role>(user?.role ?? "technician");
-  const [siteIds, setSiteIds] = useState<string[]>(user?.siteIds ?? []);
+  const [siteIds, setSiteIds] = useState<string[]>(user?.siteIds ?? (fromSite ? [fromSite] : []));
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,12 +86,12 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
         title={user ? `Edit ${user.fullName}` : "New user"}
         subtitle={user ? user.email : "Add a person to your company. They get an email link to set their password"}
         actions={
-          <ButtonLink href="/users" variant="secondary">
+          <ButtonLink href={fromSite ? `/sites/${fromSite}` : "/users"} variant="secondary">
             Cancel
           </ButtonLink>
         }
       />
-      <FormCard onSubmit={submit} error={error} busy={busy} cancelHref="/users" submitLabel={user ? "Save user" : "Send invite"}>
+      <FormCard onSubmit={submit} error={error} busy={busy} cancelHref={fromSite ? `/sites/${fromSite}` : "/users"} submitLabel={user ? "Save user" : "Send invite"}>
         <Field label="Full name" error={fields.fullName}>
           {(id) => <Input id={id} name="fullName" defaultValue={user?.fullName} placeholder="e.g. Somchai J." required autoFocus />}
         </Field>
@@ -132,12 +135,12 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
                   : "A site manager sees only the sites picked here and can manage more than one. The company admin sees every site.")}
             </p>
           </fieldset>
-        ) : TEAM_ROLES.includes(role) && bySite.length === 0 ? (
+        ) : TEAM_ROLES.includes(role) && (bySite.length === 0 || (fromSite && !teams.some((t) => t.siteId === fromSite))) ? (
           <div className="mb-4 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-ink">
             <b>No teams yet.</b> A technician or head technician must belong to a team, and each team works at one site.{" "}
-            {sites.length === 0 ? "Add a site first, then a team." : "Add a team first, then invite them."}
+            {sites.length === 0 ? "Add a site first, then a team." : fromSite ? "This site has no team yet. Add one, then invite them." : "Add a team first, then invite them."}
             <div className="mt-2">
-              <ButtonLink href={sites.length === 0 ? "/sites/new" : "/teams/new"} variant="secondary">
+              <ButtonLink href={sites.length === 0 ? "/sites/new" : fromSite ? `/teams/new?siteId=${fromSite}` : "/teams/new"} variant="secondary">
                 {sites.length === 0 ? "+ Add site" : "+ Add team"}
               </ButtonLink>
             </div>
@@ -145,7 +148,7 @@ function UserForm({ user, isSelf, sites, teams }: { user: UserRow | null; isSelf
         ) : TEAM_ROLES.includes(role) ? (
           <Field label="Team" error={fields.teamId} hint="Technicians see the jobs of their team's site">
             {(id) => (
-              <Select id={id} name="teamId" defaultValue={user?.teamId ?? ""}>
+              <Select id={id} name="teamId" defaultValue={user?.teamId ?? (fromSite ? (teams.find((t) => t.siteId === fromSite)?.id ?? "") : "")}>
                 <option value="">Choose a team…</option>
                 {bySite.map((g) => (
                   <optgroup key={g.site.id} label={g.site.name}>
