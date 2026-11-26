@@ -134,6 +134,8 @@ export interface CustomerRow {
   country: string | null;
   /** Only for admins and site managers. */
   email?: string | null;
+  /** Only for admins and site managers. */
+  phone?: string | null;
   devices: number;
   openJobs: number;
 }

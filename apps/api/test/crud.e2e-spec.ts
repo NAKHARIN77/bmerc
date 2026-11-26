@@ -93,13 +93,13 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       expect(logs[0]).toMatchObject({ entityId: id, actor: { email: 'head@siamhash.demo' } });
     });
 
-    it('list has counts and email (as in the prototype) but no other contact details', async () => {
+    it('list has counts, email and phone for admins, but not the contact person', async () => {
       const r = await get('admin@siamhash.demo', '/customers?q=BitFarm').expect(200);
       expect(r.body.items[0]).toMatchObject({ name: 'BitFarm Siam' });
       expect(r.body.items[0].devices).toBeGreaterThan(0);
       expect(r.body.items[0].openJobs).toBeGreaterThan(0);
       expect(r.body.items[0]).toHaveProperty('email');
-      expect(r.body.items[0]).not.toHaveProperty('phone');
+      expect(r.body.items[0]).toHaveProperty('phone');
       expect(r.body.items[0]).not.toHaveProperty('contactName');
     });
 

@@ -70,7 +70,12 @@ export function CustomersPage() {
             empty={search || country !== "all" ? "No customers match" : "No customers yet"}
             columns={[
               { header: "Customer", cell: (c) => <CellLink href={`/customers/${c.id}`}>{c.name}</CellLink> },
-              ...(showEmail ? [{ header: "Email", cell: (c: CustomerRow) => c.email ?? "—" }] : []),
+              ...(showEmail
+                ? [
+                    { header: "Email", cell: (c: CustomerRow) => c.email ?? "—" },
+                    { header: "Phone", cell: (c: CustomerRow) => c.phone ?? "—" },
+                  ]
+                : []),
               { header: "Country", cell: (c) => c.country ?? "—" },
               { header: "Open jobs", emphasis: true, cell: (c) => c.openJobs },
             ]}
