@@ -248,11 +248,13 @@ describe('Repair workflow, stock and device history (e2e)', () => {
     expect(job.qrPrintLogs[0]).toMatchObject({ copies: 2, by: expect.any(String) });
   });
 
-  it('customer emails show in the list for admins only', async () => {
+  it('customer email and phone show in the list for admins only', async () => {
     const admin = (await get(ADMIN, '/customers?limit=5').expect(200)).body.items;
     expect(admin[0]).toHaveProperty('email');
+    expect(admin[0]).toHaveProperty('phone');
     const head = (await get('head@siamhash.demo', '/customers?limit=5').expect(200)).body.items;
     expect(head[0]).not.toHaveProperty('email');
+    expect(head[0]).not.toHaveProperty('phone');
   });
 
   it('shows how many jobs each technician holds, only within what the viewer oversees', async () => {
