@@ -74,3 +74,7 @@ export async function api<T>(path: string, opts: Options = {}, retried = false):
 
 export const errorMessage = (e: unknown) =>
   e instanceof ApiError ? e.message : "Something went wrong. Check your connection and try again.";
+
+/** Shown when a person was saved but their invite email did not go out. */
+export const INVITE_EMAIL_FAILED =
+  "Saved, but the invite email could not be sent. The email settings need fixing; after that, press Resend invite.";

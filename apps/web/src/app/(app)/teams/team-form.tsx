@@ -1,7 +1,7 @@
 "use client";
 
 import { ROLE_LABEL, TEAM_ROLES } from "@bmerc/shared";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
@@ -37,6 +37,7 @@ function TeamFormLoader({ mode }: { mode: "new" | "edit" }) {
 
 function TeamForm({ team, sites, teams, users, canMoveSite }: { team: Team | null; sites: Site[]; teams: Team[]; users: UserRow[]; canMoveSite: boolean }) {
   const router = useRouter();
+  const presetSite = useSearchParams().get("siteId") ?? undefined;
   const [memberIds, setMemberIds] = useState<string[]>(team?.members.map((m) => m.id) ?? []);
   const [headId, setHeadId] = useState(team?.headUserId ?? "");
   const [createdId, setCreatedId] = useState<string | null>(null);
@@ -129,7 +130,7 @@ function TeamForm({ team, sites, teams, users, canMoveSite }: { team: Team | nul
           </Field>
           <Field label="Site" error={fields.siteId} hint={team && !canMoveSite ? "Only a company admin can move a team to another site" : undefined}>
             {(id) => (
-              <Select id={id} name="siteId" defaultValue={team?.siteId ?? sites[0]?.id} disabled={!!team && !canMoveSite}>
+              <Select id={id} name="siteId" defaultValue={team?.siteId ?? (sites.some((x) => x.id === presetSite) ? presetSite : sites[0]?.id)} disabled={!!team && !canMoveSite}>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}

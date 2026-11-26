@@ -57,6 +57,7 @@ export function SitePage() {
         actions={
           <>
             {back}
+            {can("company_admin", "site_manager") && <ButtonLink href={`/teams/new?siteId=${s.id}`}>+ Add team</ButtonLink>}
             {can("company_admin") && (
               <ButtonLink href={`/sites/${s.id}/edit`} variant="secondary">
                 Edit site
