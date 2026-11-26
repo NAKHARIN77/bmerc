@@ -43,8 +43,9 @@ export function CheckoutPage() {
     setBusy(true);
     setError(null);
     try {
-      const inv = await api<{ id: string }>("/billing/checkout", { method: "POST", body: { planId: plan!.id } });
-      router.push(`/subscription/invoices/${inv.id}`);
+      const inv = await api<{ id: string; voided?: string[] }>("/billing/checkout", { method: "POST", body: { planId: plan!.id } });
+      const replaced = inv.voided?.length ? `?replaced=${encodeURIComponent(inv.voided.join(", "))}` : "";
+      router.push(`/subscription/invoices/${inv.id}${replaced}`);
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);

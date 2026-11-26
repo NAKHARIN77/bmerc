@@ -49,6 +49,7 @@ function Pay({ i, reload }: { i: BillingInvoice; reload: () => void }) {
   const [cardBusy, setCardBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const card = useConfirmingCard(i.status === "open", reload);
+  const replaced = useSearchParams().get("replaced");
 
   async function payByCard() {
     setCardBusy(true);
@@ -83,6 +84,11 @@ function Pay({ i, reload }: { i: BillingInvoice; reload: () => void }) {
   return (
     <>
       <PageHeader title="Choose a payment method" subtitle={`Invoice ${i.number} · ${i.plan?.name ?? ""} plan · ${money(i.totalCents, i.currency)}`} actions={back} />
+      {replaced && i.status === "open" && (
+        <div className="mb-4 max-w-[720px]">
+          <Alert tone="neutral">Your earlier unpaid plan invoice ({replaced}) was cancelled, so you only pay this one.</Alert>
+        </div>
+      )}
       {card.returned && i.status === "open" && (
         <div className="mb-4 max-w-[720px]">
           <Alert tone="neutral">

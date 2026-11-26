@@ -150,12 +150,45 @@ export class BillingController {
           select: { id: true, number: true },
         });
         await this.audit.log({ companyId, actorUserId: me.id, action: 'billing.checkout', entityType: 'invoice', entityId: inv.id, after: { plan: plan.code, number: inv.number }, ip: req.ip });
-        return { id: inv.id };
+        const voided = await this.voidEarlierCheckouts(companyId, inv.id, me.id, req.ip);
+        return { id: inv.id, voided };
       } catch (e) {
         if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
       }
     }
     throw conflict('INVOICE_NUMBER', 'Could not number the invoice. Try again');
+  }
+
+  /**
+   * Choosing another plan replaces an earlier plan choice that was never paid, so the company does not owe both.
+   * Only invoices from an earlier checkout are voided, and only while nothing points at a payment: not past due,
+   * no transfer reported (slip), no card payment started. Anything else stays for the platform owner to decide.
+   */
+  private async voidEarlierCheckouts(companyId: string, keepId: string, actorId: string, ip?: string) {
+    const candidates = await this.db.raw.invoice.findMany({
+      where: { companyId, status: 'open', id: { not: keepId }, slipUploadedAt: null, paymentRef: null, dueAt: { gte: new Date() } },
+      select: { id: true, number: true },
+    });
+    if (!candidates.length) return [];
+    const ids = candidates.map((c) => c.id);
+    const logs = await this.db.raw.auditLog.findMany({
+      where: { companyId, entityType: 'invoice', entityId: { in: ids }, action: { in: ['billing.checkout', 'billing.card_checkout'] } },
+      select: { entityId: true, action: true },
+    });
+    const fromCheckout = new Set(logs.filter((l) => l.action === 'billing.checkout').map((l) => l.entityId));
+    const cardStarted = new Set(logs.filter((l) => l.action === 'billing.card_checkout').map((l) => l.entityId));
+    const voided: string[] = [];
+    for (const c of candidates) {
+      if (!fromCheckout.has(c.id) || cardStarted.has(c.id)) continue;
+      const done = await this.db.raw.invoice.updateMany({ where: { id: c.id, status: 'open', slipUploadedAt: null }, data: { status: 'void' } });
+      if (!done.count) continue;
+      voided.push(c.number);
+      await this.audit.log({
+        companyId, actorUserId: actorId, action: 'billing.invoice_voided', entityType: 'invoice', entityId: c.id,
+        before: { status: 'open' }, after: { status: 'void', reason: 'replaced by a new plan choice', keptInvoiceId: keepId }, ip,
+      });
+    }
+    return voided;
   }
 
   /** "I have sent the payment": the transfer reference goes to the platform owner's Pending payments. */
