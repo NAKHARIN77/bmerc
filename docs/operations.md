@@ -56,11 +56,13 @@ pg_restore --clean --if-exists --dbname="$BACKUP_DATABASE_URL" backups/bmerc-YYY
 ตัวที่เช็กต้องอยู่**นอกเซิร์ฟเวอร์** เพราะถ้าเซิร์ฟเวอร์ล่ม ตัวเช็กที่อยู่ข้างในก็ล่มไปด้วย แนะนำ **UptimeRobot** (ฟรี เช็กทุก 5 นาที) หรือ Better Stack:
 
 1. สมัครที่ uptimerobot.com
-2. Add New Monitor → แบบ **Keyword** → URL `https://<โดเมน>/api/v1/health` → Keyword `"ok"` → เช็กทุก 5 นาที
-3. เพิ่ม monitor อีกอันแบบ **HTTP(s)** สำหรับหน้าแรก `https://<โดเมน>/`
+2. Add New Monitor → แบบ **Keyword** → URL `https://bmerc.vercel.app/api/v1/health` → Keyword `"db":"ok"` → เช็กทุก 5 นาที
+3. เพิ่ม monitor อีกอันแบบ **HTTP(s)** สำหรับหน้าแรก `https://bmerc.vercel.app/`
 4. Alert contacts: ใส่อีเมล และเพิ่ม Telegram หรือแอปมือถือของ UptimeRobot เพื่อให้มีแจ้งเตือนเด้งบนโทรศัพท์
 5. ถ้าจะแจ้งลูกค้า สร้าง Status page ได้ฟรี
 
-ทำข้อนี้ตอนเอาเว็บขึ้นจริง เพราะต้องมีโดเมนก่อน
+เมื่อเปลี่ยนเป็นโดเมนของตัวเอง ให้แก้ URL ในข้อ 2–3
+
+**ตัวเช็กสำรองบน GitHub (ทำงานอยู่แล้ว ไม่ต้องสมัคร):** ไฟล์ `.github/workflows/uptime.yml` เช็กหน้าเว็บ, API ผ่าน Vercel และ API บน Railway ทุก 10 นาที ถ้าล่ม GitHub จะส่งอีเมลแจ้งเจ้าของ repo ("Run failed: Uptime") ดูผลได้ที่แท็บ **Actions** → **Uptime** และกด **Run workflow** เพื่อเช็กทันทีได้ ข้อจำกัด: GitHub อาจเลื่อนรอบเช็กตอนระบบเขาหนาแน่น และหยุดเช็กเองถ้า repo ไม่มี commit 60 วัน จึงใช้เป็นตัวสำรองของ UptimeRobot ไม่ใช่ตัวหลัก เมื่อเปลี่ยนโดเมนให้แก้ URL ในไฟล์นี้ด้วย
 
 **ภายในระบบ:** หน้า **Platform health** ของเจ้าของระบบแสดงความเร็วฐานข้อมูล เวลาที่ API ทำงานต่อเนื่อง การล็อกอินที่ล้มเหลว และสถานะอีเมล ใช้ดูตอนที่เว็บยังไม่ล่ม แต่เริ่มมีอาการผิดปกติ
