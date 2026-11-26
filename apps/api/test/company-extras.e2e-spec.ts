@@ -80,6 +80,25 @@ describe('Plan billing: checkout, report a transfer, owner confirms (e2e)', () =
     await app.close();
   });
 
+  it('choosing another plan voids the earlier unpaid choice, but not one already reported as paid', async () => {
+    const sub = (await http().get('/api/v1/billing/subscription').set(as(RAYONG)).expect(200)).body;
+    const [basic, pro] = ['basic', 'pro'].map((c) => sub.plans.find((p: { code: string }) => p.code === c));
+    const first = (await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: basic.id }).expect(201)).body;
+    made.push(first.id);
+    const second = (await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: pro.id }).expect(201)).body;
+    made.push(second.id);
+    expect(second.voided).toHaveLength(1);
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: first.id } })).status).toBe('void');
+
+    // Once a transfer is reported on the Pro invoice, switching back to Basic must leave it alone.
+    await http().post(`/api/v1/billing/invoices/${second.id}/notify`).set(as(RAYONG)).send({ method: 'bank_transfer', reference: 'KBank 1' }).expect(201);
+    const third = (await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: basic.id }).expect(201)).body;
+    made.push(third.id);
+    expect(third.voided).toEqual([]);
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: second.id } })).status).toBe('open');
+    await db.invoice.updateMany({ where: { id: { in: [second.id, third.id] } }, data: { status: 'void' } }); // leave the next test a clean start
+  });
+
   it('moves the company to the paid plan', async () => {
     const sub = (await http().get('/api/v1/billing/subscription').set(as(RAYONG)).expect(200)).body;
     const pro = sub.plans.find((p: { code: string }) => p.code === 'pro');
