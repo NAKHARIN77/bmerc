@@ -21,10 +21,16 @@ if (process.env.ALLOW_DEMO_SEED && !process.env.SEED_PASSWORD) {
 async function wipe() {
   await db.$executeRawUnsafe('ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements DISABLE TRIGGER stock_movements_append_only');
-  await db.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
-    part_requests, job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
-    jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
-    companies, plans RESTART IDENTITY CASCADE`);
+  // TRUNCATE companies CASCADE also empties miner_models (company-own models reference companies),
+  // so set the shared BMERC list (company_id NULL) aside and put it back, all on one connection.
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('CREATE TEMP TABLE keep_models ON COMMIT DROP AS SELECT * FROM miner_models WHERE company_id IS NULL');
+    await tx.$executeRawUnsafe(`TRUNCATE job_payments, job_invoice_lines, job_invoices, user_sites, user_tokens,
+      part_requests, job_parts, stock_transfers, stock_movements, site_stock, qr_print_logs, job_tests, job_components, job_events,
+      jobs, devices, parts, counters, refresh_tokens, audit_logs, invoices, subscriptions, users, teams, sites, customers,
+      companies, plans RESTART IDENTITY CASCADE`);
+    await tx.$executeRawUnsafe('INSERT INTO miner_models SELECT * FROM keep_models');
+  }, { timeout: 120_000 });
   await db.$executeRawUnsafe('ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only');
   await db.$executeRawUnsafe('ALTER TABLE stock_movements ENABLE TRIGGER stock_movements_append_only');
 }
