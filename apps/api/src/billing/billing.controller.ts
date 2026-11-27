@@ -137,8 +137,12 @@ export class BillingController {
     const year = now.getUTCFullYear();
     for (let attempt = 0; attempt < 5; attempt++) {
       // Invoice numbers are unique across the platform: INV-<year>-nnnn.
-      const last = await this.db.raw.invoice.findFirst({ where: { number: { startsWith: `INV-${year}-` } }, orderBy: { number: 'desc' }, select: { number: true } });
-      const n = (Number(last?.number.split('-')[2]) || 0) + 1 + attempt; // seed numbers such as INV-2026-A4B7 count as 0
+      // The highest all-digit number; seed numbers such as INV-2026-A4B7 are skipped (sorting the text would put
+      // them last and restart the count at 0001, which is taken).
+      const [{ max }] = await this.db.raw.$queryRaw<Array<{ max: number | null }>>`
+        SELECT max(substring("number" from '^INV-[0-9]{4}-([0-9]+)$')::int) AS max
+        FROM "invoices" WHERE "number" LIKE ${`INV-${year}-%`}`;
+      const n = (max ?? 0) + 1 + attempt;
       try {
         const inv = await this.db.raw.invoice.create({
           data: {

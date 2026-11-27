@@ -1,12 +1,14 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { api, errorMessage } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { useSession } from "@/lib/session";
 import type { PartDetail } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
-import { ButtonLink, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, SectionTitle, Table } from "@/components/ui";
+import { Alert, Button, ButtonLink, CellLink, ErrorState, Kpi, KpiRow, Loading, PageHeader, SectionTitle, Table } from "@/components/ui";
 
 const TYPE = { in: "Stock in", out: "Stock out", adjust: "Adjust" } as const;
 
@@ -14,6 +16,9 @@ export function PartPage() {
   const { id } = useParams<{ id: string }>();
   const { me, can } = useSession();
   const part = useApi<PartDetail>(me.role ? `/parts/${id}` : null);
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!me.role) return <NoAccess />;
   const back = (
@@ -34,6 +39,19 @@ export function PartPage() {
   const total = p.stock.reduce((a, s) => a + s.qty, 0);
   const low = p.stock.some((s) => s.belowMin);
 
+  async function remove() {
+    if (!window.confirm(`Delete ${p.name} (${p.sku}) from the parts catalog?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ outcome: "deleted" | "retired" }>(`/parts/${p.id}`, { method: "DELETE" });
+      router.push(`/parts?${new URLSearchParams({ done: r.outcome, name: p.name })}`);
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -42,10 +60,18 @@ export function PartPage() {
         actions={
           <>
             {back}
-            {can("company_admin", "stock_keeper") && <ButtonLink href={`/parts/${p.id}/edit`}>Edit part</ButtonLink>}
+            {can("company_admin", "stock_keeper") && (
+              <>
+                <Button variant="danger" busy={busy} onClick={remove}>
+                  Delete part
+                </Button>
+                <ButtonLink href={`/parts/${p.id}/edit`}>Edit part</ButtonLink>
+              </>
+            )}
           </>
         }
       />
+      {error && <Alert>{error}</Alert>}
       <KpiRow>
         <Kpi label="Total stock" value={total} caption={me.siteIds === null ? "All sites" : "Your sites"} />
         <Kpi label="Minimum" value={p.minQty} caption="Required level" tone="info" />

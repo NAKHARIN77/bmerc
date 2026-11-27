@@ -65,6 +65,7 @@ model Company {
   devices      Device[]
   jobs         Job[]
   parts        Part[]
+  minerModels  MinerModel[]
   auditLogs    AuditLog[]
   counters     Counter[]
 
@@ -699,8 +700,11 @@ model StockTransfer {
 // verified = the platform owner checked the numbers against a real unit or the maker's sheet.
 model MinerModel {
   id            String   @id @default(uuid()) @db.Uuid
+  // NULL: the shared list kept by the platform owner. Set: a model one company added for itself.
+  companyId     String?  @map("company_id") @db.Uuid
   brand         String
-  name          String   @unique
+  // Unique per list (shared, or each company), case-insensitive: partial indexes in the migration.
+  name          String
   hashboards    Int      @default(3)
   chipModel     String?  @map("chip_model")
   chipsPerBoard Int?     @map("chips_per_board")
@@ -712,8 +716,10 @@ model MinerModel {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   devices Device[]
 
+  @@index([companyId])
   @@map("miner_models")
 }
 

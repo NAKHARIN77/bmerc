@@ -299,5 +299,25 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       const all = (await get('admin@siamhash.demo', `/parts?q=${sku}&active=all`).expect(200)).body.items;
       expect(all).toHaveLength(1);
     });
+
+    it('delete removes an unused part, but only retires one with stock history', async () => {
+      const fresh = (await post('admin@siamhash.demo', '/parts', { sku: `DEL-${tag}`, name: 'Never used' }).expect(201)).body.id;
+      made.parts.push(fresh);
+      await del('tech@siamhash.demo', `/parts/${fresh}`).expect(403);
+      await del('manager@siamhash.demo', `/parts/${fresh}`).expect(403);
+      expect((await del('admin@siamhash.demo', `/parts/${fresh}`).expect(200)).body).toEqual({ outcome: 'deleted' });
+      await get('admin@siamhash.demo', `/parts/${fresh}`).expect(404);
+
+      // A demo part with stock: retired, not deleted, then put back in use for the other tests.
+      const used = (await get('admin@siamhash.demo', '/parts?limit=100').expect(200)).body.items.find((p: { totalQty: number }) => p.totalQty > 0).id;
+      try {
+        expect((await del('stock@siamhash.demo', `/parts/${used}`).expect(200)).body).toEqual({ outcome: 'retired' });
+        const after = (await get('admin@siamhash.demo', `/parts/${used}`).expect(200)).body;
+        expect(after.isActive).toBe(false);
+        expect(after.movements.length).toBeGreaterThan(0);
+      } finally {
+        await owner.part.update({ where: { id: used }, data: { isActive: true } });
+      }
+    });
   });
 });

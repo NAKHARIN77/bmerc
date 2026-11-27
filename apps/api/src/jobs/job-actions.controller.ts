@@ -80,8 +80,12 @@ export class JobActionsController {
     const company = await this.db.raw.company.findUniqueOrThrow({ where: { id: companyId }, select: { timezone: true } });
     // A model picked from the list wins; a typed name that matches the list is linked too.
     const listed = b.minerModelId
-      ? await this.db.raw.minerModel.findUnique({ where: { id: b.minerModelId }, select: { id: true, name: true } })
-      : await this.db.raw.minerModel.findFirst({ where: { name: { equals: b.model, mode: 'insensitive' } }, select: { id: true, name: true } });
+      ? await this.db.tenant(me).minerModel.findUnique({ where: { id: b.minerModelId }, select: { id: true, name: true } })
+      : await this.db.tenant(me).minerModel.findFirst({
+          where: { name: { equals: b.model, mode: 'insensitive' } },
+          select: { id: true, name: true },
+          orderBy: { companyId: { sort: 'asc', nulls: 'last' } }, // the company's own model first
+        });
     if (b.minerModelId && !listed) throw notFound('Miner model');
     const model = listed?.name ?? b.model;
     const minerModelId = listed?.id ?? null;

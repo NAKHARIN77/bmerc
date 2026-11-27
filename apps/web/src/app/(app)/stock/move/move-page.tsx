@@ -8,7 +8,7 @@ import { qs } from "@/lib/use-debounced";
 import { useSession } from "@/lib/session";
 import type { JobRow, MinerModel, Page, PartRow, Site, StockPage } from "@/lib/types";
 import { NoAccess } from "@/components/app-shell";
-import { ButtonLink, Field, FormCard, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
+import { Alert, ButtonLink, Field, FormCard, Input, Loading, PageHeader, Select, Textarea } from "@/components/ui";
 
 type Mode = "in" | "out" | "adjust";
 const TEXT: Record<Mode, { title: string; subtitle: string; submit: string }> = {
@@ -19,6 +19,12 @@ const TEXT: Record<Mode, { title: string; subtitle: string; submit: string }> = 
 
 /** /stock/move?type=in|out|adjust — one form for the three ledger operations (prototype: Stock in, Stock out, Adjust stock). */
 export function MovePage() {
+  // A fresh start on every visit by link, so a part just added or edited (?part=) shows up and is picked.
+  const { bfcacheId } = useRouter();
+  return <MoveLoader key={bfcacheId} />;
+}
+
+function MoveLoader() {
   const { can } = useSession();
   const params = useSearchParams();
   const t = params.get("type");
@@ -28,11 +34,25 @@ export function MovePage() {
   const sites = useApi<Site[]>(allowed ? "/sites" : null);
   if (!allowed) return <NoAccess />;
   if (!parts.data || !sites.data) return <Loading />;
-  return <MoveForm key={mode} mode={mode} parts={parts.data.items} sites={sites.data} partParam={params.get("part")} siteParam={params.get("site")} />;
+  return (
+    <MoveForm key={mode} mode={mode} parts={parts.data.items} reloadParts={parts.reload} sites={sites.data} partParam={params.get("part")} siteParam={params.get("site")} />
+  );
 }
 
-function MoveForm({ mode, parts, sites, partParam, siteParam }: { mode: Mode; parts: PartRow[]; sites: Site[]; partParam: string | null; siteParam: string | null }) {
+function MoveForm({ mode, parts, reloadParts, sites, partParam, siteParam }: {
+  mode: Mode;
+  parts: PartRow[];
+  reloadParts: () => void;
+  sites: Site[];
+  partParam: string | null;
+  siteParam: string | null;
+}) {
   const router = useRouter();
+  const { can } = useSession();
+  const editParts = can("company_admin", "stock_keeper");
+  const [partMsg, setPartMsg] = useState<string | null>(null);
+  // Where the part form comes back to after saving (it adds ?part= with the saved part).
+  const here = `/stock/move${qs({ type: mode, site: siteParam ?? undefined })}`;
   const [partId, setPartId] = useState(partParam && parts.some((p) => p.id === partParam) ? partParam : (parts[0]?.id ?? ""));
   const [siteId, setSiteId] = useState(siteParam && sites.some((x) => x.id === siteParam) ? siteParam : (sites[0]?.id ?? ""));
   const [jobId, setJobId] = useState("");
@@ -73,6 +93,42 @@ function MoveForm({ mode, parts, sites, partParam, siteParam }: { mode: Mode; pa
     }
   }
 
+  async function deletePart() {
+    if (!part || !window.confirm(`Delete ${part.name} (${part.sku}) from the parts catalog?`)) return;
+    setPartMsg(null);
+    setError(null);
+    try {
+      const r = await api<{ outcome: "deleted" | "retired" }>(`/parts/${part.id}`, { method: "DELETE" });
+      setPartMsg(
+        r.outcome === "deleted"
+          ? `${part.name} was deleted.`
+          : `${part.name} has stock history, so it was retired instead: it no longer shows in this list, and old jobs keep it.`,
+      );
+      setPartId(parts.find((p) => p.id !== part.id)?.id ?? "");
+      reloadParts();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  const partTools = editParts ? (
+    <span className="flex flex-wrap gap-x-4 gap-y-1">
+      <a className="font-semibold text-info hover:underline" href={`/parts/new${qs({ back: here })}`}>
+        + New part
+      </a>
+      {part && (
+        <a className="font-semibold text-info hover:underline" href={`/parts/${part.id}/edit${qs({ back: here })}`}>
+          Edit this part
+        </a>
+      )}
+      {part && (
+        <button type="button" className="font-semibold text-danger hover:underline" onClick={deletePart}>
+          Delete this part
+        </button>
+      )}
+    </span>
+  ) : undefined;
+
   const text = TEXT[mode];
   return (
     <>
@@ -85,11 +141,15 @@ function MoveForm({ mode, parts, sites, partParam, siteParam }: { mode: Mode; pa
           </ButtonLink>
         }
       />
+      {partMsg && <Alert tone="success">{partMsg}</Alert>}
       {parts.length === 0 ? (
-        <p className="text-muted">Add parts to the catalog first.</p>
+        <div className="text-muted">
+          <p className="mb-3">Add parts to the catalog first.</p>
+          {editParts && <ButtonLink href={`/parts/new${qs({ back: here })}`}>+ Add part</ButtonLink>}
+        </div>
       ) : (
         <FormCard onSubmit={submit} error={error} busy={busy} cancelHref="/stock" submitLabel={text.submit}>
-          <Field label="Part" error={fields.partId}>
+          <Field label="Part" error={fields.partId} hint={partTools}>
             {(id) => (
               <Select id={id} value={partId} onChange={(e) => setPartId(e.target.value)}>
                 {groups.map(([cat, ps]) => (

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { DbService } from '../db/db.service.js';
@@ -31,7 +31,7 @@ const select = { id: true, sku: true, name: true, category: true, modelIds: true
 const SKU_TAKEN = ['SKU_TAKEN', 'Another part already uses this SKU'] as const;
 
 // Catalog only. Stock in / out / adjust are ledger operations and come with the stock work (plan step 6).
-// No delete: parts are referenced by the stock ledger. Set isActive to false instead.
+// Delete removes a part only while nothing refers to it; a part with stock history is retired (isActive false) instead.
 @Controller('parts')
 export class PartsController {
   constructor(
@@ -100,7 +100,7 @@ export class PartsController {
   @Post()
   async create(@CurrentUser() me: AuthUser, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartBody, body);
-    await this.assertModels(data.modelIds);
+    await this.assertModels(me, data.modelIds);
     const part = await uniqueOr409(this.db.tenant(me).part.create({ data: { ...data, companyId: me.companyId! }, select }), ...SKU_TAKEN);
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'part.created', entityType: 'part', entityId: part.id, after: part, ip: req.ip });
     return part;
@@ -110,7 +110,7 @@ export class PartsController {
   @Patch(':id')
   async update(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
     const data = parse(PartPatch, body);
-    await this.assertModels(data.modelIds);
+    await this.assertModels(me, data.modelIds);
     const db = this.db.tenant(me);
     const before = await db.part.findUnique({ where: { id: parse(uuid, id) }, select });
     if (!before) throw notFound('Part');
@@ -122,15 +122,49 @@ export class PartsController {
     return after;
   }
 
+  /**
+   * Removes a part from the catalog. A part that was ever received, issued, transferred or requested is retired
+   * instead (isActive false): the stock ledger and old jobs keep pointing at it, and it leaves every picker.
+   */
+  @Roles('company_admin', 'stock_keeper')
+  @Delete(':id')
+  async remove(@CurrentUser() me: AuthUser, @Param('id') id: string, @Req() req: Request) {
+    const partId = parse(uuid, id);
+    const result = await this.db.tenantTx(me, async (tx) => {
+      const before = await tx.part.findUnique({ where: { id: partId }, select });
+      if (!before) throw notFound('Part');
+      const [moves, used, transfers, requests, held] = await Promise.all([
+        tx.stockMovement.count({ where: { partId } }),
+        tx.jobPart.count({ where: { partId } }),
+        tx.stockTransfer.count({ where: { partId } }),
+        tx.partRequest.count({ where: { partId } }),
+        tx.siteStock.count({ where: { partId, qty: { gt: 0 } } }),
+      ]);
+      if (moves + used + transfers + requests + held > 0) {
+        await tx.part.update({ where: { id: partId }, data: { isActive: false } });
+        return { before, outcome: 'retired' as const };
+      }
+      await tx.siteStock.deleteMany({ where: { partId } });
+      await tx.part.delete({ where: { id: partId } });
+      return { before, outcome: 'deleted' as const };
+    });
+    await this.audit.log({
+      companyId: me.companyId, actorUserId: me.id, action: result.outcome === 'deleted' ? 'part.deleted' : 'part.retired',
+      entityType: 'part', entityId: partId, before: result.before, ip: req.ip,
+    });
+    return { outcome: result.outcome };
+  }
+
   /** Stock rows this user may see; with siteId, only that site (and nothing if it is not one of theirs). */
   private stockWhere(me: AuthUser, siteId?: string) {
     if (siteId) return { siteId: me.siteIds === null || me.siteIds.includes(siteId) ? siteId : { in: [] as string[] } };
     return me.siteIds === null ? {} : { siteId: { in: me.siteIds } };
   }
 
-  private async assertModels(ids?: string[]) {
+  /** The shared list plus the company's own models (RLS hides other companies' models). */
+  private async assertModels(me: AuthUser, ids?: string[]) {
     if (!ids?.length) return;
-    const found = await this.db.raw.minerModel.count({ where: { id: { in: ids } } });
+    const found = await this.db.tenant(me).minerModel.count({ where: { id: { in: ids } } });
     if (found !== new Set(ids).size) throw notFound('Miner model');
   }
 }
