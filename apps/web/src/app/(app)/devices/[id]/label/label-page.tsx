@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, errorMessage } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { useSession } from "@/lib/session";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import type { DeviceHistory, JobDetail, JobRow, Page } from "@/lib/types";
 import { Alert, Button, ButtonLink, Card, ErrorState, Field, Loading, PageHeader, Select, Table } from "@/components/ui";
@@ -26,6 +27,7 @@ const PRINT_CSS = `
 export function LabelPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { me } = useSession();
   const jobParam = useSearchParams().get("job");
   const d = useApi<DeviceHistory>(`/devices/${id}/history`);
   const qcJobs = useApi<Page<JobRow>>("/jobs?status=qc_passed&limit=100");
@@ -80,7 +82,7 @@ export function LabelPage() {
 
   const label: ReactNode = (
     <div className="mx-auto box-border flex h-[30mm] w-[50mm] flex-col rounded-md border border-navy bg-white p-[1.5mm] text-left text-navy">
-      <div className="text-[6pt] font-bold leading-none">BMERC REPAIR CENTER</div>
+      <div className="truncate text-[6pt] font-bold uppercase leading-none">{me.company?.name ?? "BMERC Repair Center"}</div>
       <div className="mt-[1mm] flex min-h-0 flex-1 gap-[1.5mm]">
         {/* eslint-disable-next-line @next/next/no-img-element -- generated data URL, nothing to optimise */}
         {img ? <img src={img} alt={`QR code ${code}`} className="h-[22mm] w-[22mm] flex-none" /> : <div className="h-[22mm] w-[22mm]" />}
