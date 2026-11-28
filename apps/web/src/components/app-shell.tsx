@@ -22,46 +22,79 @@ interface NavItem {
   badge?: "partRequests";
 }
 
-// One "Main menu" group, as in the prototype: the company admin menu is Dashboard, Customers, Sites,
-// Subscription (Reports comes later); technicians get My jobs, Scan QR, My team. Jobs, teams, technicians
-// and stock open from the dashboard and the site detail tabs, as in the prototype.
+// The company menu runs in the order the work happens: daily repair work first (dashboard, receive a device
+// from a customer, hand jobs to technicians), then stock and parts, then company setup that is touched rarely.
 const ADMIN: Role[] = ["company_admin", "site_manager"];
 const BENCH: Role[] = ["head_technician", "technician"];
 const NAV: Array<{ group: string; items: NavItem[] }> = [
   {
-    group: "Main menu",
+    group: "Daily work",
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices", "/job-cards"] },
+      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: [...ADMIN, "stock_keeper"], also: ["/jobs", "/board", "/devices"] },
       { label: "My jobs", href: "/board", icon: "wrench", roles: BENCH, also: ["/jobs", "/devices", "/job-cards"] },
       { label: "Scan QR", href: "/scan", icon: "qr", roles: BENCH },
       { label: "My team", href: "/team", icon: "users", roles: BENCH },
+      // Customers first: a repair starts when a customer brings a device in ("Receive device").
       { label: "Customers", href: "/customers", icon: "users", roles: ADMIN },
+      // Every technician and the jobs they hold, per site: who is busy, who is free, and the jobs nobody has taken yet.
+      { label: "Job cards", href: "/job-cards", icon: "wrench", roles: ADMIN },
+    ],
+  },
+  {
+    group: "Stock & parts",
+    items: [
       { label: "Part requests", href: "/stock/requests", icon: "box", roles: [...ADMIN, "stock_keeper", "head_technician"], badge: "partRequests" },
       // Stock keepers work in stock every day. Company admins get it too: in a small company the admin keeps the stock.
       { label: "Stock", href: "/stock", icon: "list", roles: ["company_admin", "stock_keeper"] },
       // One click to the parts list: add, edit or delete a part (and the miner models it fits) when a customer sends one that is not listed.
       { label: "Parts", href: "/parts", icon: "box", roles: ["company_admin", "stock_keeper"], also: ["/miner-models"] },
+    ],
+  },
+  {
+    group: "Company",
+    items: [
+      { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
       { label: "Sites", href: "/sites", icon: "pin", roles: [...ADMIN, "stock_keeper"], also: ["/teams", "/stock", "/parts", "/technicians"] },
       { label: "Staff", href: "/users", icon: "users", roles: ADMIN },
-      { label: "Reports", href: "/reports", icon: "chart", roles: ADMIN },
       { label: "Subscription", href: "/subscription", icon: "doc", roles: ["company_admin"], also: ["/settings/company"] },
     ],
   },
 ];
 
-// Platform owner menu (prototype OWNER_NAV). Shown only to platform owner accounts.
-const OWNER_NAV: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all", also: ["/platform/companies"] },
-  { label: "Sites", href: "/platform/sites", icon: "pin", roles: "all" },
-  { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
-  { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
-  { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
-  { label: "Miner models", href: "/platform/models", icon: "box", roles: "all" },
-  { label: "Revenue", href: "/platform/revenue", icon: "dollar", roles: "all" },
-  { label: "Payments", href: "/platform/payments", icon: "dollar", roles: "all" },
-  { label: "Pending payments", href: "/platform/pending", icon: "dollar", roles: "all" },
-  { label: "Platform health", href: "/platform/health", icon: "heart", roles: "all" },
-  { label: "Audit log", href: "/platform/audit", icon: "list", roles: "all" },
+// Platform owner menu, shown only to platform owner accounts. Same order idea as the company menu:
+// daily checks first (payments waiting for approval, health), then companies, then money, then setup.
+const OWNER_NAV: Array<{ group: string; items: NavItem[] }> = [
+  {
+    group: "Daily work",
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: "grid", roles: "all", also: ["/platform/companies"] },
+      { label: "Pending payments", href: "/platform/pending", icon: "dollar", roles: "all" },
+      { label: "Platform health", href: "/platform/health", icon: "heart", roles: "all" },
+    ],
+  },
+  {
+    group: "Companies",
+    items: [
+      { label: "Sites", href: "/platform/sites", icon: "pin", roles: "all" },
+      { label: "Quotas", href: "/platform/quotas", icon: "shield", roles: "all" },
+    ],
+  },
+  {
+    group: "Money",
+    items: [
+      { label: "Payments", href: "/platform/payments", icon: "dollar", roles: "all" },
+      { label: "Revenue", href: "/platform/revenue", icon: "dollar", roles: "all" },
+      { label: "Reports", href: "/platform/reports", icon: "chart", roles: "all" },
+    ],
+  },
+  {
+    group: "Setup",
+    items: [
+      { label: "Plans", href: "/platform/plans", icon: "doc", roles: "all" },
+      { label: "Miner models", href: "/platform/models", icon: "box", roles: "all" },
+      { label: "Audit log", href: "/platform/audit", icon: "list", roles: "all" },
+    ],
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -90,7 +123,7 @@ function Shell({ children }: { children: ReactNode }) {
   }
 
   const visible = (i: NavItem) => i.roles === "all" || (!!me.role && i.roles.includes(me.role));
-  const menu = me.isPlatformAdmin ? [{ group: "Main menu", items: OWNER_NAV }] : NAV;
+  const menu = me.isPlatformAdmin ? OWNER_NAV : NAV;
   const rk = roleKey(me);
   // Only one menu item lights up: the one whose path matches the current page most closely
   // (e.g. /stock/requests is "Part requests", not "Sites", even though Sites also covers /stock).
@@ -148,12 +181,15 @@ function Shell({ children }: { children: ReactNode }) {
       </header>
 
       <aside className={`fixed bottom-0 left-0 top-16 z-20 overflow-y-auto bg-white px-2 py-5 transition-[width] ${asideWidth}`}>
-        {menu.map(({ group, items }) => {
+        <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{roleLabel(rk)} menu</div>
+        {menu.map(({ group, items }, gi) => {
           const shown = items.filter(visible);
           if (!shown.length) return null;
+          // A role with only one group (technicians, the platform owner) gets no group headings.
+          const grouped = menu.filter((g) => g.items.some(visible)).length > 1;
           return (
-            <div key={group}>
-              <div className={`px-4 pb-3 text-[11px] font-bold uppercase tracking-[.04em] text-muted ${labelWhenExpanded}`}>{roleLabel(rk)} menu</div>
+            <div key={group} className={grouped && gi > 0 ? "mt-3 border-t border-line pt-3" : ""}>
+              {grouped && <div className={`px-4 pb-1.5 text-[11px] font-semibold text-muted/80 ${labelWhenExpanded}`}>{group}</div>}
               {shown.map((i) => {
                 const active = i.href === activeHref;
                 return (

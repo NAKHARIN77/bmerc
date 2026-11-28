@@ -60,12 +60,15 @@ describe('Plan billing: checkout, report a transfer, owner confirms (e2e)', () =
   const OWNER = 'owner@bmerc.demo';
   let before: { companyId: string; planId: string; status: string; currentPeriodStart: Date; currentPeriodEnd: Date };
   const made: string[] = [];
+  let starter: { id: string };
 
   beforeAll(async () => {
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     configureApp(app);
     await app.init();
+    // Basic has no monthly fee, so it is not on sale; a second paid plan stands in for "another plan".
+    starter = await db.plan.create({ data: { code: `starter-${Date.now()}`, name: 'Starter (test)', priceCents: 4900, maxJobsPerMonth: 100 }, select: { id: true } });
     for (const email of [RAYONG, OWNER, ADMIN]) {
       tokens[email] = (await http().post('/api/v1/auth/login').send({ email, password: PW }).expect(200)).body.accessToken;
     }
@@ -76,13 +79,19 @@ describe('Plan billing: checkout, report a transfer, owner confirms (e2e)', () =
   afterAll(async () => {
     await db.subscription.update({ where: { companyId: before.companyId }, data: { planId: before.planId, status: before.status as never, currentPeriodStart: before.currentPeriodStart, currentPeriodEnd: before.currentPeriodEnd } });
     await db.invoice.deleteMany({ where: { id: { in: made } } });
+    await db.plan.delete({ where: { id: starter.id } });
     await db.$disconnect();
     await app.close();
   });
 
   it('choosing another plan voids the earlier unpaid choice, but not one already reported as paid', async () => {
     const sub = (await http().get('/api/v1/billing/subscription').set(as(RAYONG)).expect(200)).body;
-    const [basic, pro] = ['basic', 'pro'].map((c) => sub.plans.find((p: { code: string }) => p.code === c));
+    const pro = sub.plans.find((p: { code: string }) => p.code === 'pro');
+    // Basic is shown (it is what a company has without Pro) but has no fee, so there is nothing to buy.
+    const free = sub.plans.find((p: { code: string }) => p.code === 'basic');
+    expect(free.priceCents).toBe(0);
+    await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: free.id }).expect(404);
+    const basic = { id: starter.id };
     const first = (await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: basic.id }).expect(201)).body;
     made.push(first.id);
     const second = (await http().post('/api/v1/billing/checkout').set(as(RAYONG)).send({ planId: pro.id }).expect(201)).body;

@@ -22,7 +22,7 @@ export function CheckoutPage() {
   if (sub.error) return <ErrorState error={sub.error} onRetry={sub.reload} />;
   if (!sub.data) return <Loading />;
   const s = sub.data;
-  const plan = s.plans.find((p) => p.id === planId);
+  const plan = s.plans.find((p) => p.id === planId && p.priceCents > 0); // Basic has no fee: nothing to pay for
   const back = (
     <ButtonLink href="/subscription" variant="secondary">
       Back to subscription

@@ -278,6 +278,18 @@ describe('Company, customers, sites, teams, parts (e2e)', () => {
       await post('admin@siamhash.demo', '/parts', { sku: 'bad sku!', name: 'Bad' }).expect(400);
     });
 
+    it('a part saved with the SKU left empty gets <CATEGORY>-0001, then -0002', async () => {
+      const category = `Zq${tag}s`.slice(-9); // a prefix no other part uses
+      const prefix = category.slice(0, -1).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const a = await post('stock@siamhash.demo', '/parts', { sku: '', name: 'Auto SKU one', category }).expect(201);
+      const b = await post('admin@siamhash.demo', '/parts', { name: 'Auto SKU two', category }).expect(201);
+      made.parts.push(a.body.id, b.body.id);
+      expect(a.body.sku).toBe(`${prefix}-0001`);
+      expect(b.body.sku).toBe(`${prefix}-0002`);
+      // A SKU typed in by hand is kept as typed, and editing a part may not blank its SKU.
+      await patch('admin@siamhash.demo', `/parts/${a.body.id}`, { sku: '' }).expect(400);
+    });
+
     it('technicians can read the catalog but not change it', async () => {
       await get('tech@siamhash.demo', '/parts').expect(200);
       await post('tech@siamhash.demo', '/parts', { sku: `T2-${tag}`, name: 'Nope' }).expect(403);

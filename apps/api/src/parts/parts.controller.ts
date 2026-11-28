@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
+import { Prisma } from '../generated/prisma/client.js';
+import { nextSkuNumber, skuPrefix } from './auto-sku.js';
 import { DbService } from '../db/db.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { notFound, parse } from '../common/http.js';
@@ -10,8 +12,9 @@ import { uniqueOr409 } from '../common/prisma-errors.js';
 import { CurrentUser, Roles } from '../auth/decorators.js';
 import { COMPANY_ROLES, type AuthUser } from '../auth/auth-user.js';
 
+const Sku = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dot, dash and underscore only');
 const PartBody = z.object({
-  sku: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dot, dash and underscore only'),
+  sku: Sku,
   name: z.string().trim().min(2).max(200),
   category: z.string().trim().max(100).nullable().optional(),
   modelIds: z.array(z.uuid()).max(50).optional(), // miner models it fits; empty = any model
@@ -19,6 +22,8 @@ const PartBody = z.object({
   minQty: z.number().int().min(0).max(1_000_000).optional(),
   isActive: z.boolean().optional(),
 });
+// On create the SKU may be left empty: the server makes one from the category (see autoSku).
+const PartCreate = PartBody.extend({ sku: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), Sku.optional()) });
 const PartPatch = PartBody.partial().refine((b) => Object.keys(b).length > 0, 'Nothing to update');
 const PartQuery = PageQuery.extend({
   q: z.string().trim().max(100).optional(), // name or SKU
@@ -99,9 +104,26 @@ export class PartsController {
   @Roles('company_admin', 'stock_keeper')
   @Post()
   async create(@CurrentUser() me: AuthUser, @Body() body: unknown, @Req() req: Request) {
-    const data = parse(PartBody, body);
+    const { sku, ...data } = parse(PartCreate, body);
     await this.assertModels(me, data.modelIds);
-    const part = await uniqueOr409(this.db.tenant(me).part.create({ data: { ...data, companyId: me.companyId! }, select }), ...SKU_TAKEN);
+    const db = this.db.tenant(me);
+    let part;
+    if (sku) {
+      part = await uniqueOr409(db.part.create({ data: { ...data, sku, companyId: me.companyId! }, select }), ...SKU_TAKEN);
+    } else {
+      // Next free number for the prefix; retried if another save takes the same number at the same moment.
+      const prefix = skuPrefix(data.category);
+      for (let attempt = 0; ; attempt++) {
+        const taken = await db.part.findMany({ where: { sku: { startsWith: `${prefix}-` } }, select: { sku: true } });
+        const next = nextSkuNumber(prefix, taken.map((t) => t.sku)) + attempt;
+        try {
+          part = await db.part.create({ data: { ...data, sku: `${prefix}-${String(next).padStart(4, '0')}`, companyId: me.companyId! }, select });
+          break;
+        } catch (e) {
+          if (attempt >= 4 || !(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+        }
+      }
+    }
     await this.audit.log({ companyId: me.companyId, actorUserId: me.id, action: 'part.created', entityType: 'part', entityId: part.id, after: part, ip: req.ip });
     return part;
   }

@@ -51,7 +51,7 @@ export function SubscriptionPage() {
           <b className="text-base">Current plan: {current?.plan.name ?? "None"}</b>
           <span className="text-muted">
             Credits used this month: {jobs.used} {jobs.limit === null ? "(no limit)" : `of ${jobs.limit}`}
-            {current && ` · Paid until ${fmtDate(current.currentPeriodEnd)}`}
+            {current && current.plan.priceCents > 0 && ` · Paid until ${fmtDate(current.currentPeriodEnd)}`}
           </span>
         </div>
         {jobs.limit !== null && (
@@ -63,11 +63,13 @@ export function SubscriptionPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {s.plans.map((p) => {
           const isCurrent = current?.plan.id === p.id;
+          const free = p.priceCents === 0;
           return (
             <div key={p.id} className="flex flex-col rounded-xl border border-soft bg-white p-6">
               <b className="text-lg">{p.name}</b>
               <div className="my-2 text-[28px] font-bold">{money(p.priceCents, p.currency)} / month</div>
-              {s.vatBps > 0 && <div className="-mt-1 mb-2 text-xs text-muted">plus VAT {vatText(s.vatBps)}</div>}
+              {free && <div className="-mt-1 mb-2 text-xs text-muted">No monthly fee. Every company is on this plan until it chooses a paid one.</div>}
+              {!free && s.vatBps > 0 && <div className="-mt-1 mb-2 text-xs text-muted">plus VAT {vatText(s.vatBps)}</div>}
               <ul className="mb-4 flex-1 list-disc pl-[18px] leading-[1.9] text-muted">
                 {p.features.map((f) => (
                   <li key={f}>{f}</li>
@@ -78,11 +80,17 @@ export function SubscriptionPage() {
                 <div className="mt-0.5 text-muted">
                   Credits per job: {WORK_TYPES.map((t) => `${WORK_TYPE_LABEL[t].toLowerCase()} ${(isCurrent ? s.creditWeights : p.creditWeights)[t]}`).join(" · ")}
                 </div>
-                <div className="mt-0.5 text-xs text-muted">Used when a job passes QC. Cannot-repair jobs are free; the same device again within 7 days counts once.{isCurrent ? " These are the weights you bought." : ""}</div>
+                <div className="mt-0.5 text-xs text-muted">Used when a job passes QC. Cannot-repair jobs are free; the same device again within 7 days counts once.{isCurrent ? (free ? " These are your weights." : " These are the weights you bought.") : ""}</div>
               </div>
-              <ButtonLink href={`/subscription/checkout?plan=${p.id}`} variant={isCurrent ? "primary" : "secondary"} className="w-full">
-                {isCurrent ? "Renew plan" : `Choose ${p.name}`}
-              </ButtonLink>
+              {free ? (
+                <div className="flex h-11 items-center justify-center rounded-lg bg-[#f5f8ff] text-sm font-semibold text-muted">
+                  {isCurrent ? "Your current plan" : "Included at no cost"}
+                </div>
+              ) : (
+                <ButtonLink href={`/subscription/checkout?plan=${p.id}`} variant={isCurrent ? "primary" : "secondary"} className="w-full">
+                  {isCurrent ? "Renew plan" : `Choose ${p.name}`}
+                </ButtonLink>
+              )}
             </div>
           );
         })}

@@ -41,7 +41,7 @@ describe('Platform owner console (e2e)', () => {
 
   afterAll(async () => {
     await owner.company.update({ where: { id: eastern.id }, data: { status: eastern.status } });
-    await owner.subscription.update({ where: { companyId: eastern.id }, data: { status: 'trialing' } });
+    await owner.subscription.update({ where: { companyId: eastern.id }, data: { status: 'active' } });
     await owner.$executeRaw`UPDATE subscriptions SET override_limits = NULL WHERE company_id = ${eastern.id}::uuid`;
     await owner.plan.update({ where: { id: basic.id }, data: { priceCents: basic.priceCents, features: basic.features as string[] } });
     await owner.$disconnect();
@@ -74,7 +74,7 @@ describe('Platform owner console (e2e)', () => {
     expect(log?.after).toMatchObject({ reason: 'Agreed pilot' });
     await patch(OWNER, `/platform/companies/${eastern.id}/limits`, { reset: true, reason: 'Back to plan' }).expect(200);
     c = (await get(OWNER, `/platform/companies/${eastern.id}`).expect(200)).body;
-    expect(c.limits.jobsPerMonth).toBe(50); // Trial plan
+    expect(c.limits.jobsPerMonth).toBe(200); // Basic plan
   });
 
   it('suspends and activates a company', async () => {
@@ -84,8 +84,7 @@ describe('Platform owner console (e2e)', () => {
     await http().get('/api/v1/customers').set({ Authorization: `Bearer ${admin}` }).expect(403);
     await post(OWNER, `/platform/companies/${eastern.id}/activate`).expect(201);
     await http().get('/api/v1/customers').set({ Authorization: `Bearer ${admin}` }).expect(200);
-    // A trial company goes back to trialing, not to a paid "active" subscription.
-    expect((await owner.subscription.findUniqueOrThrow({ where: { companyId: eastern.id } })).status).toBe('trialing');
+    expect((await owner.subscription.findUniqueOrThrow({ where: { companyId: eastern.id } })).status).toBe('active');
   });
 
   it('edits a plan and refuses to mark a paid invoice as paid again', async () => {

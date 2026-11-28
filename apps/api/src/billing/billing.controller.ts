@@ -51,7 +51,8 @@ export class BillingController {
           subscription: { select: { status: true, currentPeriodStart: true, currentPeriodEnd: true, plan: { select: { id: true, code: true, name: true, priceCents: true } } } },
         },
       }),
-      this.db.raw.plan.findMany({ where: { isActive: true, priceCents: { gt: 0 } }, orderBy: { priceCents: 'asc' } }),
+      // Basic (no fee) is listed too, so the page shows what a company without a paid plan gets; checkout only sells paid plans.
+      this.db.raw.plan.findMany({ where: { isActive: true }, orderBy: { priceCents: 'asc' } }),
       limitsFor(this.db.raw, companyId),
       usageFor(this.db.raw, companyId),
     ]);
