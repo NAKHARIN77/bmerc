@@ -23,6 +23,7 @@ export function JobCardsPage() {
   const jobs = useApi<Page<JobRow>>(allowed ? "/jobs?active=true&limit=100" : null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [siteId, setSiteId] = useState("");
   if (!allowed) return <NoAccess />;
 
   const reload = () => {
@@ -42,9 +43,17 @@ export function JobCardsPage() {
     }
   }
 
-  const all = jobs.data?.items ?? [];
+  // Sites come from the technicians and jobs on screen, so a site manager only ever sees their own sites here.
+  const sites = new Map<string, string>();
+  for (const t of techs.data ?? []) sites.set(t.site.id, t.site.name);
+  for (const j of jobs.data?.items ?? []) sites.set(j.site.id, j.site.name);
+  const siteOptions = [...sites].sort((a, b) => a[1].localeCompare(b[1]));
+  const inSite = (id: string) => !siteId || id === siteId;
+
+  const all = (jobs.data?.items ?? []).filter((j) => inSite(j.site.id));
   const queue = all.filter((j) => j.status === "todo" && !j.assignee);
-  const list = techs.data ?? [];
+  // A technician shows under a site when their team is there or they hold one of that site's jobs.
+  const list = (techs.data ?? []).filter((t) => inSite(t.site.id) || all.some((j) => j.assignee?.id === t.id));
 
   return (
     <>
@@ -53,6 +62,16 @@ export function JobCardsPage() {
         subtitle="Every technician in your company and the job cards assigned to them"
         actions={
           <>
+            {siteOptions.length > 1 && (
+              <Select aria-label="Site" className="h-10 !w-auto min-w-[180px]" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
+                <option value="">All sites</option>
+                {siteOptions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            )}
             {can("company_admin") && (
               <ButtonLink href="/technicians" variant="secondary">
                 Technicians
@@ -105,7 +124,11 @@ export function JobCardsPage() {
               </div>
             )}
           </Card>
-          {list.length === 0 && <Card className="text-muted">No technicians in a team yet. Add technicians and put them in a team at a site.</Card>}
+          {list.length === 0 && (
+            <Card className="text-muted">
+              {siteId ? "No technicians at this site yet." : "No technicians in a team yet. Add technicians and put them in a team at a site."}
+            </Card>
+          )}
           {list.map((t) => {
             const mine = all.filter((j) => j.assignee?.id === t.id);
             return (
