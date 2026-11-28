@@ -36,7 +36,15 @@ function PartFormLoader({ mode }: { mode: "new" | "edit" }) {
   }
   // Keyed on the loaded data: Next keeps this page alive between visits, so a fresh load must rebuild the form.
   if (!models.data) return <Loading />;
-  return <PartForm key={existing.data ? JSON.stringify(existing.data) : "new"} part={existing.data ?? null} categories={categories.data ?? []} models={models.data} />;
+  return <PartForm key={existing.data ? JSON.stringify(existing.data) : "new"} part={existing.data ?? null} categories={withStarterCategories(categories.data ?? [])} models={models.data} />;
+}
+
+// Suggested while typing a category, next to the ones this company already uses. Any other text is fine too.
+const STARTER_CATEGORIES = ["Chips", "Hashboards", "Control boards", "PSU", "Fans", "Thermal", "Cables", "Connectors", "Sensors", "Screws", "Other"];
+
+function withStarterCategories(own: string[]) {
+  const seen = new Set(own.map((c) => c.toLowerCase()));
+  return [...own, ...STARTER_CATEGORIES.filter((c) => !seen.has(c.toLowerCase()))];
 }
 
 function PartForm({ part, categories, models }: { part: PartDetail | null; categories: string[]; models: MinerModel[] }) {
@@ -100,8 +108,8 @@ function PartForm({ part, categories, models }: { part: PartDetail | null; categ
           {(id) => <Input id={id} name="name" defaultValue={part?.name} placeholder="e.g. Hashing chip BM1398" required autoFocus />}
         </Field>
         <div className="grid gap-x-5 sm:grid-cols-2">
-          <Field label="SKU" error={fields.sku} hint="Letters, digits, dot, dash and underscore">
-            {(id) => <Input id={id} name="sku" defaultValue={part?.sku} placeholder="e.g. CHIP-BM1398" required />}
+          <Field label="SKU" error={fields.sku} hint={part ? "Letters, digits, dot, dash and underscore" : "Leave empty to number it from the category, e.g. CHIP-0001"}>
+            {(id) => <Input id={id} name="sku" defaultValue={part?.sku} placeholder={part ? "e.g. CHIP-BM1398" : "Auto, e.g. CHIP-0001"} required={!!part} />}
           </Field>
           <Field label="Category" error={fields.category}>
             {(id) => (
