@@ -19,6 +19,6 @@ describe('skuPrefix', () => {
 describe('nextSkuNumber', () => {
   it('counts on from the highest number with this prefix', () => {
     expect(nextSkuNumber('CHIP', [])).toBe(1);
-    expect(nextSkuNumber('CHIP', ['CHIP-0001', 'CHIP-0007', 'CHIP-BM1398', 'CHIPX-0099'])).toBe(8);
+    expect(nextSkuNumber('CHIP', ['CHIP-0001', 'CHIP-0007', 'CHIP-BM1398', 'CHIPX-0099', 'CHIP-12038'])).toBe(8);
   });
 });
