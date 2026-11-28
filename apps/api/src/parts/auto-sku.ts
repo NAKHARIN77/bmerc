@@ -11,9 +11,12 @@ export function skuPrefix(category: string | null | undefined): string {
   return p || 'PART';
 }
 
-/** One more than the highest <prefix>-<digits> SKU in use; SKUs of any other shape are ignored. */
+/**
+ * One more than the highest <prefix>-NNNN SKU in use (exactly four digits, the shape this file makes).
+ * Other SKUs are ignored, so a model number such as FAN-12038 does not push the next number to FAN-12039.
+ */
 export function nextSkuNumber(prefix: string, taken: string[]): number {
-  const re = new RegExp(`^${prefix}-([0-9]+)$`);
+  const re = new RegExp(`^${prefix}-([0-9]{4})$`);
   let max = 0;
   for (const s of taken) {
     const m = re.exec(s);
