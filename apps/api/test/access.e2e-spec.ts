@@ -226,8 +226,15 @@ describe('Access scope, invites, password reset, view logging (e2e)', () => {
     });
 
     it('the plan seat limit blocks invites when full', async () => {
-      const r = await post('admin@easternasic.demo', '/users', { email: `seat-${tag}@x.demo`, fullName: 'Seat Test', role: 'stock_keeper' }).expect(409);
-      expect(r.body.code).toBe('QUOTA_USERS');
+      // Eastern ASIC has one user; a one-seat limit makes it full.
+      const eastern = await owner.company.findFirstOrThrow({ where: { name: 'Eastern ASIC Lab' }, select: { id: true } });
+      await owner.subscription.update({ where: { companyId: eastern.id }, data: { overrideLimits: { maxUsers: 1 } } });
+      try {
+        const r = await post('admin@easternasic.demo', '/users', { email: `seat-${tag}@x.demo`, fullName: 'Seat Test', role: 'stock_keeper' }).expect(409);
+        expect(r.body.code).toBe('QUOTA_USERS');
+      } finally {
+        await owner.$executeRaw`UPDATE subscriptions SET override_limits = NULL WHERE company_id = ${eastern.id}::uuid`;
+      }
     });
 
     it('a site manager lists only staff at their sites', async () => {

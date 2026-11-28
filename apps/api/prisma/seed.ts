@@ -41,13 +41,10 @@ async function main() {
   await wipe();
   const passwordHash = await argon2.hash(DEMO_PASSWORD, { type: argon2.argon2id });
 
-  // Plans (prices from the prototype's Plans page; Basic price still to be confirmed)
-  const trial = await db.plan.create({
-    data: { code: 'trial', name: 'Trial', priceCents: 0, maxJobsPerMonth: 50, maxSites: 1, maxUsers: 1, features: ['14-day trial'] },
-  });
+  // Plans: Basic is where every new company starts (no monthly fee, 200 credits a month); Pro is paid.
   const basic = await db.plan.create({
     data: {
-      code: 'basic', name: 'Basic', priceCents: 9900, maxJobsPerMonth: 200, maxSites: 2, maxUsers: 5,
+      code: 'basic', name: 'Basic', priceCents: 0, maxJobsPerMonth: 200, maxSites: 2, maxUsers: 5,
       features: ['200 credits per month (adjustable by admin)', 'Credits per job: inspection 1, chip replacement 3, board repair 5', 'Stock deduction included', 'Alert at 80% of monthly credits'],
     },
   });
@@ -183,7 +180,7 @@ async function main() {
   // ── Other companies for the platform-owner views ──
   const others = [
     { name: 'Rayong Mining Solutions', plan: basic.id, sub: 'active' as const, status: 'active' as const, email: 'admin@rayong.demo' },
-    { name: 'Eastern ASIC Lab', plan: trial.id, sub: 'trialing' as const, status: 'active' as const, email: 'admin@easternasic.demo' },
+    { name: 'Eastern ASIC Lab', plan: basic.id, sub: 'active' as const, status: 'active' as const, email: 'admin@easternasic.demo' },
     { name: 'North Miner Service', plan: basic.id, sub: 'suspended' as const, status: 'suspended' as const, email: 'admin@northminer.demo' },
   ];
   for (const o of others) {
